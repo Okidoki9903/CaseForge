@@ -12,8 +12,11 @@ export function AlertCenter({ derived }: { derived: Derived }) {
   const { t } = useTranslation();
   const open = useFirm((s) => s.alertCenterOpen);
   const setOpen = useFirm((s) => s.setAlertCenterOpen);
+  const filter = useFirm((s) => s.alertFilter);
+  const setFilter = useFirm((s) => s.setAlertFilter);
   if (!open) return null;
-  const { alerts } = derived;
+  const critical = derived.alerts.filter((a) => a.level === 'critique' || a.level === 'depasse');
+  const alerts = filter === 'critical' ? critical : derived.alerts;
 
   return (
     <aside className="glass animate-panel pointer-events-auto absolute bottom-3 right-3 top-[86px] z-40 flex w-[420px] flex-col overflow-hidden rounded-2xl">
@@ -24,6 +27,20 @@ export function AlertCenter({ derived }: { derived: Derived }) {
         </div>
         <IconButton onClick={() => setOpen(false)} title={t('actions.close')}><Icon.close /></IconButton>
       </header>
+      <div className="flex gap-1 px-4 pb-2" role="tablist">
+        {([['critical', t('alerts.filterCritical', { count: critical.length })], ['all', t('alerts.filterAll', { count: derived.alerts.length })]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={filter === key}
+            onClick={() => setFilter(key)}
+            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${filter === key ? (key === 'critical' ? 'bg-[var(--color-critique)] text-white' : 'bg-[var(--color-ink)] text-white') : 'bg-white text-[var(--color-muted)]'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="scrollbar-thin flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {alerts.length === 0 && <p className="p-6 text-center text-sm text-[var(--color-muted)]">{t('alerts.empty')}</p>}
         {alerts.map((a) => (
@@ -40,7 +57,7 @@ export function AlertCard({ alert: a, derived, compact = false }: { alert: Deadl
   const complete = useFirm((s) => s.complete);
   const select = useFirm((s) => s.select);
   const currentStaffId = useFirm((s) => s.currentStaffId);
-  const [acking, setAcking] = useState(false);
+  const [pending, setPending] = useState<'acknowledge' | 'complete' | null>(null);
   const [initials, setInitials] = useState(derived.staffById.get(currentStaffId)?.initials ?? '');
   const assignee = derived.staffById.get(a.deadline.assignedTo);
   const color = ALERT_COLORS[a.level];
@@ -74,12 +91,14 @@ export function AlertCard({ alert: a, derived, compact = false }: { alert: Deadl
           <span className="flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] text-[var(--color-muted)]">
             <Icon.check /> {t('alerts.acknowledged', { who: a.deadline.acknowledgedBy })}
           </span>
-        ) : acking ? (
+        ) : null}
+        {pending ? (
           <form
             className="flex items-center gap-1"
             onSubmit={(e) => {
               e.preventDefault();
-              void acknowledge(a.deadline.id, initials).then(() => setAcking(false));
+              const action = pending === 'acknowledge' ? acknowledge : complete;
+              void action(a.deadline.id, initials).then(() => setPending(null));
             }}
           >
             <input
@@ -90,24 +109,29 @@ export function AlertCard({ alert: a, derived, compact = false }: { alert: Deadl
               aria-label={t('alerts.initials')}
               className="h-7 w-16 rounded-md border border-[var(--color-line)] px-2 text-xs font-bold uppercase outline-none focus:border-[var(--color-brand)]"
             />
-            <button type="submit" className="h-7 rounded-md px-2 text-xs font-bold text-white" style={{ background: color }}>
-              {t('alerts.confirm')}
+            <button type="submit" className="h-7 rounded-md px-2 text-xs font-bold text-white" style={{ background: pending === 'complete' ? '#2f9e6e' : color }}>
+              {pending === 'complete' ? t('alerts.confirmComplete') : t('alerts.confirm')}
+            </button>
+            <button type="button" onClick={() => setPending(null)} className="h-7 rounded-md px-1.5 text-xs text-[var(--color-muted)] hover:bg-slate-100" aria-label={t('actions.close')}>
+              ✕
             </button>
           </form>
         ) : (
-          (a.level === 'critique' || a.level === 'depasse' || a.level === 'urgent') && (
-            <button type="button" onClick={() => setAcking(true)} className="h-7 rounded-md px-2.5 text-xs font-bold text-white" style={{ background: color }}>
-              {t('alerts.acknowledge')}
+          <>
+            {!a.deadline.acknowledgedBy && (a.level === 'critique' || a.level === 'depasse' || a.level === 'urgent') && (
+              <button type="button" onClick={() => setPending('acknowledge')} className="h-7 rounded-md px-2.5 text-xs font-bold text-white" style={{ background: color }}>
+                {t('alerts.acknowledge')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setPending('complete')}
+              className="h-7 rounded-md border border-[var(--color-line)] bg-white px-2.5 text-xs font-semibold hover:border-emerald-400 hover:text-emerald-700"
+            >
+              {t('alerts.complete')}
             </button>
-          )
+          </>
         )}
-        <button
-          type="button"
-          onClick={() => void complete(a.deadline.id)}
-          className="h-7 rounded-md border border-[var(--color-line)] bg-white px-2.5 text-xs font-semibold hover:border-emerald-400 hover:text-emerald-700"
-        >
-          {t('alerts.complete')}
-        </button>
         {!compact && (
           <button
             type="button"

@@ -10,6 +10,7 @@ import { useFirm } from '../store/useFirm';
 import { Building } from './Building';
 import { CameraRig } from './CameraRig';
 import { ExternalNode } from './ExternalNode';
+import { FocusLighting } from './FocusLighting';
 import { Ground } from './Ground';
 import { computeLayout, type Vec3 } from './layout';
 import { MatterUnit } from './MatterUnit';
@@ -59,19 +60,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
     >
       <color attach="background" args={[SCENE_COLORS.background]} />
       <fog attach="fog" args={[SCENE_COLORS.background, 160, 320]} />
-      <ambientLight intensity={0.6} />
-      <hemisphereLight args={['#ffffff', '#b9c6d8', 0.6]} />
-      <directionalLight
-        castShadow
-        position={[30, 60, 20]}
-        intensity={1.7}
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-55}
-        shadow-camera-right={55}
-        shadow-camera-top={55}
-        shadow-camera-bottom={-55}
-        shadow-bias={-0.0004}
-      />
+      <FocusLighting />
 
       <Ground layout={layout} />
 

@@ -70,7 +70,8 @@ export function buildAlerts(deadlines: Deadline[], matters: Matter[], today: Iso
       matter,
       level,
       daysLeft,
-      requiresAcknowledgement: (level === 'depasse' || level === 'critique') && !deadline.acknowledgedAt,
+      // Seul un accusé NOMINATIF (date + initiales) lève l'obligation.
+      requiresAcknowledgement: (level === 'depasse' || level === 'critique') && !(deadline.acknowledgedAt && deadline.acknowledgedBy),
     });
   }
   return alerts.sort(

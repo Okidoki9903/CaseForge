@@ -9,7 +9,7 @@ const api: CaseForgeApi = {
   storage: 'sqlite',
   getSnapshot: () => ipcRenderer.invoke(IPC.getSnapshot),
   acknowledgeDeadline: (id, initials) => ipcRenderer.invoke(IPC.acknowledgeDeadline, id, initials),
-  completeDeadline: (id) => ipcRenderer.invoke(IPC.completeDeadline, id),
+  completeDeadline: (id, initials) => ipcRenderer.invoke(IPC.completeDeadline, id, initials),
   setMatterStage: (id, stage, actor) => ipcRenderer.invoke(IPC.setMatterStage, id, stage, actor),
   addTimeEntry: (entry) => ipcRenderer.invoke(IPC.addTimeEntry, entry),
   setTimeEntryStatus: (id, status, actor) => ipcRenderer.invoke(IPC.setTimeEntryStatus, id, status, actor),

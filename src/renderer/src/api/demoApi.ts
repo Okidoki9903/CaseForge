@@ -93,12 +93,14 @@ export function createDemoApi(): CaseForgeApi {
         d.acknowledgedAt = new Date().toISOString();
         audit(s, d.acknowledgedBy, 'acknowledge', 'deadline', id);
       }),
-    completeDeadline: (id) =>
+    completeDeadline: (id, initials) =>
       mutate((s) => {
+        const who = normalizeInitials(initials);
         const d = s.deadlines.find((x) => x.id === id && x.status === 'ouvert');
         if (!d) throw new Error('Échéance introuvable ou déjà fermée.');
         d.status = 'complete';
         d.completedAt = new Date().toISOString();
+        audit(s, who, 'complete', 'deadline', id);
       }),
     setMatterStage: (id, stage, actor) =>
       mutate((s) => {

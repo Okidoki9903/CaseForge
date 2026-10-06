@@ -29,4 +29,17 @@ describe('alertes', () => {
     s.deadlines.forEach((d) => (d.status = 'complete'));
     expect(buildAlerts(s.deadlines, s.matters, '2026-10-06')).toHaveLength(0);
   });
+
+  it('une alerte critique reste « à accuser » tant qu’aucun accusé nominatif n’est enregistré', () => {
+    const today = '2026-10-06';
+    const s = buildDemoSnapshot(today);
+    const target = buildAlerts(s.deadlines, s.matters, today).find((a) => a.requiresAcknowledgement)!;
+    const d = s.deadlines.find((x) => x.id === target.deadline.id)!;
+    // Accusé de réception nominatif : l'alerte quitte la bannière…
+    d.acknowledgedAt = new Date().toISOString();
+    d.acknowledgedBy = 'HB';
+    expect(buildAlerts(s.deadlines, s.matters, today).find((a) => a.deadline.id === d.id)?.requiresAcknowledgement).toBe(false);
+    // L'alerte reste visible (critique) tant que l'échéance n'est pas faite.
+    expect(buildAlerts(s.deadlines, s.matters, today).find((a) => a.deadline.id === d.id)?.level).toMatch(/critique|depasse/);
+  });
 });

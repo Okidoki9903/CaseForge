@@ -18,7 +18,15 @@ export function App() {
   const { t } = useTranslation();
   const load = useFirm((s) => s.load);
   const error = useFirm((s) => s.error);
+  const clearError = useFirm((s) => s.clearError);
   const derived = useDerived();
+
+  // Les messages d'erreur disparaissent d'eux-mêmes après quelques secondes.
+  useEffect(() => {
+    if (!error) return;
+    const id = setTimeout(clearError, 5000);
+    return () => clearTimeout(id);
+  }, [error, clearError]);
 
   // Chargement initial + rafraîchissement périodique (changement de jour, notifications).
   useEffect(() => {

@@ -34,10 +34,15 @@ export function MatterUnit({ matter, color, target, level, nextAlert, conflict }
   const hover = useFirm((s) => s.hover);
   const selected = useFirm((s) => s.selection?.kind === 'matter' && s.selection.id === matter.id);
   const dimmed = useFirm((s) => s.stageFilter !== null && s.stageFilter !== matter.stage);
+  // Mode focus : un autre dossier est sélectionné → celui-ci passe au second plan.
+  const unfocused = useFirm((s) => s.selection?.kind === 'matter' && s.selection.id !== matter.id);
   const [hovered, setHovered] = useState(false);
   const phase = useRef(Math.random() * Math.PI * 2);
   const alarming = level === 'depasse' || level === 'critique';
   const unacknowledged = nextAlert?.requiresAcknowledgement ?? false;
+  const conflictOpen = conflict === 'potentiel' || conflict === 'confirme';
+  const showCountdown = Boolean(nextAlert) && (alarming || level === 'urgent');
+  const showLabel = !dimmed && (showCountdown || conflictOpen || hovered || selected);
 
   useFrame(({ clock }, dt) => {
     const g = group.current;
@@ -72,8 +77,16 @@ export function MatterUnit({ matter, color, target, level, nextAlert, conflict }
       >
         {/* Boîte de dossier */}
         <RoundedBox args={[0.66, 0.42, 0.62]} radius={0.06} position-y={0.21} castShadow>
-          <meshStandardMaterial color={color} transparent opacity={dimmed ? 0.2 : 1} />
+          <meshStandardMaterial
+            color={color}
+            transparent
+            opacity={dimmed ? 0.2 : unfocused ? 0.45 : 1}
+            emissive={color}
+            emissiveIntensity={selected ? 0.45 : 0}
+          />
         </RoundedBox>
+        {/* Projecteur sur le dossier sélectionné */}
+        {selected && <pointLight position={[0, 2.2, 0]} intensity={14} distance={7} color="#ffffff" />}
         {/* Bande d'état d'échéance */}
         <mesh position-y={0.44}>
           <boxGeometry args={[0.68, 0.06, 0.64]} />
@@ -97,29 +110,26 @@ export function MatterUnit({ matter, color, target, level, nextAlert, conflict }
       {alarming && !dimmed && <DeadlineBeacon color={ALERT_COLORS[level]} strong={unacknowledged} />}
 
       {/* Conflit d'intérêts potentiel / confirmé : anneau violet et pastille ⚖ */}
-      {(conflict === 'potentiel' || conflict === 'confirme') && !dimmed && (
+      {conflictOpen && !dimmed && (
         <>
           <mesh rotation-x={-Math.PI / 2} position-y={-0.26}>
             <ringGeometry args={[0.66, 0.78, 40]} />
-            <meshBasicMaterial color={CONFLICT_COLOR[conflict]} />
+            <meshBasicMaterial color={CONFLICT_COLOR[conflict as keyof typeof CONFLICT_COLOR]} />
           </mesh>
-          <Html position={[0.45, 0.75, 0]} center zIndexRange={[20, 0]}>
-            <div className="map-label" style={{ background: CONFLICT_COLOR[conflict], color: '#fff', padding: '1px 6px' }} title={t(`conflicts.status.${conflict}`)}>
-              ⚖
-            </div>
-          </Html>
         </>
       )}
 
-      {(alarming || level === 'urgent' || hovered || selected) && !dimmed && (
+      {showLabel && (
         <Html position={[0, 1.05, 0]} center zIndexRange={[20, 0]}>
-          <div
-            className={`map-label ${unacknowledged ? 'animate-alert' : ''}`}
-            style={alarming || level === 'urgent' ? { background: ALERT_COLORS[level], color: '#fff' } : undefined}
-          >
-            {hovered || selected ? `${matter.number} · ${matter.title}` : ''}
-            {nextAlert && (alarming || level === 'urgent') && (
-              <span className={hovered || selected ? 'ml-1.5' : ''}>
+          <div className="pointer-events-none flex items-center gap-1 whitespace-nowrap">
+            {conflictOpen && (
+              <span className="map-label" style={{ background: CONFLICT_COLOR[conflict as keyof typeof CONFLICT_COLOR], color: '#fff' }} title={t(`conflicts.status.${conflict}`)}>
+                ⚖ {t('conflicts.badge')}
+              </span>
+            )}
+            {(hovered || selected) && <span className="map-label">{matter.number} · {matter.title}</span>}
+            {showCountdown && nextAlert && (
+              <span className={`map-label ${unacknowledged ? 'animate-alert' : ''}`} style={{ background: ALERT_COLORS[level], color: '#fff' }}>
                 {nextAlert.daysLeft < 0
                   ? `⛔ ${t('level.depasse')}`
                   : nextAlert.daysLeft === 0

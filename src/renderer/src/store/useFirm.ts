@@ -29,19 +29,23 @@ interface FirmState {
   hovered: Selection;
   stageFilter: PipelineStage | null;
   alertCenterOpen: boolean;
+  /** Filtre du centre d'alertes : toutes, ou seulement critiques et dépassées. */
+  alertFilter: 'all' | 'critical';
   conflictOpen: boolean;
   currentStaffId: Id;
   timer: RunningTimer | null;
 
   load: () => Promise<void>;
+  clearError: () => void;
   select: (s: Selection) => void;
   hover: (s: Selection) => void;
   setStageFilter: (s: PipelineStage | null) => void;
-  setAlertCenterOpen: (open: boolean) => void;
+  setAlertCenterOpen: (open: boolean, filter?: 'all' | 'critical') => void;
+  setAlertFilter: (filter: 'all' | 'critical') => void;
   setConflictOpen: (open: boolean) => void;
   setCurrentStaff: (id: Id) => void;
   acknowledge: (deadlineId: Id, initials: string) => Promise<void>;
-  complete: (deadlineId: Id) => Promise<void>;
+  complete: (deadlineId: Id, initials: string) => Promise<void>;
   setStage: (matterId: Id, stage: PipelineStage) => Promise<void>;
   /** Saisie de temps (durée brute en minutes, arrondie au dixième d'heure par la couche de données). */
   logMinutes: (matterId: Id, minutes: number, description: string, billable?: boolean) => Promise<boolean>;
@@ -98,6 +102,7 @@ export const useFirm = create<FirmState>((set, get) => {
     hovered: null,
     stageFilter: null,
     alertCenterOpen: false,
+    alertFilter: 'all',
     conflictOpen: false,
     currentStaffId: pref.get('cf.staff', 'st-01'),
     timer: pref.get<RunningTimer | null>('cf.timer', null),
@@ -107,11 +112,14 @@ export const useFirm = create<FirmState>((set, get) => {
     load: async () => {
       await run(async () => set({ today: localToday() }));
     },
+    clearError: () => set({ error: null }),
     actor: () => get().snapshot?.staff.find((p) => p.id === get().currentStaffId)?.initials ?? '',
     select: (selection) => set({ selection }),
     hover: (hovered) => set({ hovered }),
     setStageFilter: (stageFilter) => set({ stageFilter }),
-    setAlertCenterOpen: (alertCenterOpen) => set(alertCenterOpen ? { alertCenterOpen, timeDrawerOpen: false } : { alertCenterOpen }),
+    setAlertCenterOpen: (alertCenterOpen, alertFilter = 'all') =>
+      set(alertCenterOpen ? { alertCenterOpen, alertFilter, timeDrawerOpen: false } : { alertCenterOpen }),
+    setAlertFilter: (alertFilter) => set({ alertFilter }),
     setConflictOpen: (conflictOpen) => set({ conflictOpen }),
     setCurrentStaff: (id) => {
       pref.set('cf.staff', id);
@@ -121,8 +129,8 @@ export const useFirm = create<FirmState>((set, get) => {
     acknowledge: async (id, initials) => {
       await run(() => api.acknowledgeDeadline(id, initials));
     },
-    complete: async (id) => {
-      await run(() => api.completeDeadline(id));
+    complete: async (id, initials) => {
+      await run(() => api.completeDeadline(id, initials));
     },
     setStage: async (id, stage) => {
       await run(() => api.setMatterStage(id, stage, get().actor()));

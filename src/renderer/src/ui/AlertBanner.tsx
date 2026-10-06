@@ -46,7 +46,7 @@ export function AlertBanner({ derived }: { derived: Derived }) {
         </div>
         <button
           type="button"
-          onClick={() => setAlertCenterOpen(true)}
+          onClick={() => setAlertCenterOpen(true, 'critical')}
           className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-bold shadow active:scale-95"
           style={{ color }}
         >

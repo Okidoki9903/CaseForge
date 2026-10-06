@@ -55,7 +55,7 @@ export function TopBar({ derived }: { derived: Derived }) {
           value={String(kpis.criticalDeadlines)}
           tone={criticalTone}
           pulse={kpis.unacknowledged > 0}
-          onClick={() => setAlertCenterOpen(true)}
+          onClick={() => setAlertCenterOpen(true, 'critical')}
         />
         <Kpi label={t('kpi.billable')} value={hours(kpis.billableHoursMonth)} />
         <Kpi

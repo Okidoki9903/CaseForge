@@ -22,8 +22,8 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
     onDataChanged();
   });
 
-  ipcMain.handle(IPC.completeDeadline, (_e, id: unknown) => {
-    repo.completeDeadline(str(id, 'id'));
+  ipcMain.handle(IPC.completeDeadline, (_e, id: unknown, initials: unknown) => {
+    repo.completeDeadline(str(id, 'id'), str(initials, 'initials'));
     onDataChanged();
   });
 

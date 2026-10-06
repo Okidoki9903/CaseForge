@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { migrate, Repository } from './repository';
 import { MIGRATIONS } from './migrations';
+import { buildAlerts } from '@shared/domain/alerts';
 
 function freshRepo() {
   const db = new Database(':memory:');
@@ -121,5 +122,23 @@ describe('dépôt SQLite', () => {
     expect(() => repo.updateConflictCheck(c.id, { matterId: 'zzz' }, 'SO')).toThrow();
     const log = db.prepare("SELECT details_json FROM audit_log WHERE action = 'update_conflict_check'").get() as { details_json: string };
     expect(JSON.parse(log.details_json).to).toEqual({ status: 'confirme', matterId: 'm-002' });
+  });
+
+  it('alerte critique : impossible de la faire disparaître sans initiales nominatives', () => {
+    const { repo, db } = freshRepo();
+    const pending = () => buildAlerts(repo.getSnapshot().deadlines, repo.getSnapshot().matters, '2026-10-06').filter((a) => a.requiresAcknowledgement);
+    const first = pending()[0];
+    expect(first).toBeDefined();
+    // Ni accusé de réception ni « marquer fait » sans initiales valides.
+    for (const bad of ['', ' ', 'X', '12', 'TROPLONG']) {
+      expect(() => repo.acknowledgeDeadline(first.deadline.id, bad)).toThrow();
+      expect(() => repo.completeDeadline(first.deadline.id, bad)).toThrow();
+    }
+    expect(pending().some((a) => a.deadline.id === first.deadline.id)).toBe(true);
+    repo.completeDeadline(first.deadline.id, 'hb');
+    expect(pending().some((a) => a.deadline.id === first.deadline.id)).toBe(false);
+    const log = db.prepare("SELECT actor FROM audit_log WHERE action = 'complete' AND entity_id = ?").get(first.deadline.id) as { actor: string };
+    expect(log.actor).toBe('HB');
+    expect(() => repo.completeDeadline(first.deadline.id, 'HB')).toThrow(); // déjà fermée
   });
 });

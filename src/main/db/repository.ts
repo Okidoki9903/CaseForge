@@ -113,13 +113,14 @@ export class Repository {
     })();
   }
 
-  completeDeadline(id: Id): void {
+  completeDeadline(id: Id, initials: string): void {
+    const who = normalizeInitials(initials);
     this.db.transaction(() => {
       const res = this.db
         .prepare("UPDATE deadlines SET status = 'complete', completed_at = ? WHERE id = ? AND status = 'ouvert'")
         .run(new Date().toISOString(), id);
       if (res.changes !== 1) throw new Error('Échéance introuvable ou déjà fermée.');
-      this.audit('local', 'complete', 'deadline', id);
+      this.audit(who, 'complete', 'deadline', id);
     })();
   }
 
