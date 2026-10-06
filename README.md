@@ -177,14 +177,14 @@ src/
 | Québec | Mise en état (art. 173 C.p.c.) : 6 mois (1 an en matière familiale) à compter du protocole présumé accepté, ou accepté ou établi par le tribunal. À défaut de protocole déposé dans le délai, le délai court à compter de la signification de la demande. C'est un **délai de rigueur**. |
 | Ontario | Civic Holiday et Remembrance Day sont des « holidays » (r. 1.03) : ils sont exclus et entraînent le report de l'échéance (r. 3.01). |
 | Fédéral | Vacances de Noël du 21 décembre au 7 janvier inclusivement, **non comptées** (suspension) pour les délais fixés par les Règles pour déposer, modifier, transmettre ou signifier un document (r. 6(3)), sauf directive contraire de la Cour. |
+| Ontario | Délais de **7 jours ou moins** : les jours fériés ne sont pas comptés (r. 3.01(1)(b), « seven days or less »). |
+| Fédéral | Contrôle judiciaire (par. 18.1(2) de la Loi sur les Cours fédérales) : délai statutaire, la r. 6(3) ne s'applique pas, donc les vacances de Noël **sont comptées**. |
 
 **Encore à valider**
 
-1. **Fédéral, contrôle judiciaire (par. 18.1(2) de la Loi sur les Cours fédérales)** : ce délai est fixé par la Loi et non par les Règles. Par prudence, CaseForge **ne déduit pas** les vacances de Noël. Faut-il maintenir ce choix ?
-2. **Ontario, r. 3.01(1)(b)** : le moteur exclut les jours fériés pour les délais de **moins de 7 jours**, selon notre lecture du texte. Votre note mentionne « 7 jours ou moins ». Lequel retenir ?
-3. **Colombie-Britannique et Alberta** : calendriers établis d'après les lois d'interprétation provinciales, avec leurs délais de base (prescriptions de 2 ans et ultimes, réponse et défense). Ils sont signalés « à valider » dans l'interface.
-4. **Autres délais du catalogue** non encore confirmés : art. 145, 149 et 360 C.p.c. ; art. 2925 et 2929 C.c.Q. ; prescription et règles 18.01, 61.04 et 48.14 en Ontario.
-5. **Autres provinces** : jours fériés nationaux et fins de semaine seulement, pour l'instant.
+1. **Colombie-Britannique et Alberta** : calendriers établis d'après les lois d'interprétation provinciales, avec leurs délais de base (prescriptions de 2 ans et ultimes, réponse et défense). Ils sont signalés « à valider » dans l'interface.
+2. **Autres délais du catalogue** non encore confirmés : art. 145, 149 et 360 C.p.c. ; art. 2925 et 2929 C.c.Q. ; prescription et règles 18.01, 61.04 et 48.14 en Ontario.
+3. **Autres provinces** : jours fériés nationaux et fins de semaine seulement, pour l'instant.
 
 ## Feuille de route suggérée
 

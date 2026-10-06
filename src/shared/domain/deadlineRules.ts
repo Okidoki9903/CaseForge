@@ -8,7 +8,8 @@
  *    n'est pas compté, celui de l'échéance l'est ; un délai qui expire un samedi ou un jour
  *    férié est reporté au premier jour juridique suivant. Les périodes de non-siège de
  *    l'art. 82 (été, Fêtes) ne suspendent pas les délais.
- *  - ON (r. 3.01) : idem ; pour un délai de moins de 7 jours, les jours fériés ne sont pas comptés.
+ *  - ON (r. 3.01) : idem ; pour un délai de 7 jours ou moins (« seven days or less »), les jours
+ *    fériés (dont samedis et dimanches, r. 1.03) ne sont pas comptés.
  *  - FED (Règles des Cours fédérales, r. 6) : idem ; pour les délais fixés par les Règles pour
  *    déposer, modifier, transmettre ou signifier un document, les jours du 21 déc. au 7 janv.
  *    ne sont pas comptés (r. 6(3)) — véritable suspension, pas un simple report.
@@ -70,7 +71,8 @@ export const DEADLINE_RULES: DeadlineRule[] = [
   {
     id: 'FED_JUDICIAL_REVIEW', jurisdiction: 'FED', kind: 'procedure', label: 'Demande de contrôle judiciaire', trigger: 'Communication de la décision',
     amount: 30, unit: 'jours', legalBasis: 'Loi sur les Cours fédérales, par. 18.1(2)',
-    note: 'Délai fixé par la Loi et non par les Règles : par prudence, les vacances de Noël (r. 6(3)) ne sont pas déduites.',
+    note: 'Délai statutaire fixé par la Loi : la r. 6(3) ne s’applique pas, les vacances de Noël sont comptées.',
+    validated: true,
   },
   { id: 'FED_AFFIDAVITS_DEMANDEUR', jurisdiction: 'FED', kind: 'procedure', label: 'Affidavits et pièces documentaires du demandeur', trigger: 'Délivrance de l’avis de demande', amount: 30, unit: 'jours', legalBasis: 'Règles des Cours fédérales, r. 306', federalRecess: true },
   // ── Colombie-Britannique (À VALIDER) ─────────────────────────────────
@@ -102,9 +104,9 @@ export interface ComputedDeadline {
   reasoning: string[];
 }
 
-/** Ontario r. 3.01(1)(b) : délai de moins de 7 jours → jours fériés non comptés. */
+/** Ontario r. 3.01(1)(b) : délai de 7 jours ou moins → jours fériés non comptés. */
 function countJuridicalDaysOnly(jurisdiction: Jurisdiction, amount: number, unit: DurationUnit): boolean {
-  return jurisdiction === 'ON' && unit === 'jours' && amount < 7;
+  return jurisdiction === 'ON' && unit === 'jours' && amount <= 7;
 }
 
 export function computeDeadline(rule: DeadlineRule, triggerDate: IsoDate, extraHolidays: IsoDate[] = []): ComputedDeadline {
@@ -121,7 +123,7 @@ export function computeDeadline(rule: DeadlineRule, triggerDate: IsoDate, extraH
         if (!isNonJuridicalDay(cur, rule.jurisdiction, extraHolidays)) counted++;
       }
       raw = cur;
-      reasoning.push(`Délai de moins de 7 jours : seuls les jours juridiques sont comptés (${rule.amount}).`);
+      reasoning.push(`Délai de 7 jours ou moins (r. 3.01(1)(b)) : seuls les jours juridiques sont comptés (${rule.amount}).`);
     } else if (rule.federalRecess) {
       // r. 6(3) : les jours des vacances de Noël ne sont pas comptés (suspension).
       let cur = triggerDate;
