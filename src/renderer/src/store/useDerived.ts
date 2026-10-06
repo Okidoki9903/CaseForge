@@ -4,6 +4,7 @@
 import { useMemo } from 'react';
 import { buildAlerts, type DeadlineAlert, worstLevel } from '@shared/domain/alerts';
 import { firmKpis, staffLoad, type StaffLoad } from '@shared/domain/metrics';
+import { flaggedMatters } from '@shared/domain/conflicts';
 import type { Id } from '@shared/types';
 import { useFirm } from './useFirm';
 
@@ -26,6 +27,8 @@ export function useDerived() {
       matterLevel,
       loads,
       kpis: firmKpis(snapshot, today, alerts),
+      /** Dossiers visés par une vérification de conflits potentielle ou confirmée. */
+      conflicts: flaggedMatters(snapshot.conflictChecks),
       staffById: new Map(snapshot.staff.map((p) => [p.id, p])),
       partyById: new Map(snapshot.parties.map((p) => [p.id, p])),
       areaById: new Map(snapshot.practiceAreas.map((a) => [a.id, a])),

@@ -13,6 +13,9 @@ export function Legend() {
             <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ALERT_COLORS[l] }} /> {t(`level.${l}`)}
           </span>
         ))}
+        <span className="flex items-center gap-1.5">
+          <span className="grid h-3 w-3 place-items-center rounded-full bg-[#8e4ec6] text-[8px] text-white">⚖</span> {t('conflicts.potential')}
+        </span>
         {(Object.keys(LOAD_COLORS) as (keyof typeof LOAD_COLORS)[]).map((l) => (
           <span key={l} className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full border-2" style={{ borderColor: LOAD_COLORS[l] }} /> {t(`load.${l}`)}

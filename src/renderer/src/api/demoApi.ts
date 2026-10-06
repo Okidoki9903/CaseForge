@@ -8,6 +8,8 @@ import { buildDemoSnapshot } from '@shared/seed';
 import { localToday } from '@shared/domain/dates';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
+import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
+import { CONFLICT_STATUSES, type ConflictCheck } from '@shared/types';
 
 const DB_NAME = 'caseforge-demo';
 const STORE = 'kv';
@@ -55,6 +57,8 @@ export function createDemoApi(): CaseForgeApi {
       memory = buildDemoSnapshot(localToday());
       await save(memory);
     }
+    // Données enregistrées par une version antérieure : champs ajoutés depuis.
+    memory.conflictChecks ??= [];
     return memory;
   };
   const save = async (s: FirmSnapshot) => {
@@ -136,6 +140,38 @@ export function createDemoApi(): CaseForgeApi {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       return true;
     },
+    recordConflictCheck: async (query, actor, matterId = null) => {
+      let created: ConflictCheck | undefined;
+      await mutate((s) => {
+        const who = normalizeInitials(actor);
+        const q = query.trim().slice(0, 300);
+        if (normalizeName(q).length === 0) throw new Error('Recherche vide.');
+        if (matterId && !s.matters.some((m) => m.id === matterId)) throw new Error('Dossier introuvable.');
+        const hits = toCheckHits(searchConflicts(q, s));
+        created = {
+          id: `cc-${crypto.randomUUID()}`, query: q, performedBy: who, performedAt: new Date().toISOString(),
+          status: initialConflictStatus(hits), matterId, hits, updatedAt: null, updatedBy: null,
+        };
+        s.conflictChecks.unshift(created);
+      });
+      return created!;
+    },
+    updateConflictCheck: (id, patch, actor) =>
+      mutate((s) => {
+        const who = normalizeInitials(actor);
+        const c = s.conflictChecks.find((x) => x.id === id);
+        if (!c) throw new Error('Vérification introuvable.');
+        if (patch.status !== undefined) {
+          if (!CONFLICT_STATUSES.includes(patch.status)) throw new Error('Statut invalide.');
+          c.status = patch.status;
+        }
+        if (patch.matterId !== undefined) {
+          if (patch.matterId && !s.matters.some((m) => m.id === patch.matterId)) throw new Error('Dossier introuvable.');
+          c.matterId = patch.matterId;
+        }
+        c.updatedAt = new Date().toISOString();
+        c.updatedBy = who;
+      }),
     resetDemoData: () => save(buildDemoSnapshot(localToday())),
   };
 }

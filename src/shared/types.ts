@@ -150,6 +150,33 @@ export interface MatterDocument {
   addedAt: IsoDate;
 }
 
+/** Statuts d'une vérification de conflits. */
+export const CONFLICT_STATUSES = ['en_cours', 'clair', 'potentiel', 'confirme'] as const;
+export type ConflictStatus = (typeof CONFLICT_STATUSES)[number];
+
+/** Correspondance trouvée lors d'une vérification (figée au moment de la recherche). */
+export interface ConflictCheckHit {
+  partyId: Id;
+  partyName: string;
+  matchedName: string;
+  score: number;
+  roles: { matterId: Id; role: PartyRole }[];
+}
+
+/** Trace d'une vérification de conflits (preuve de diligence). */
+export interface ConflictCheck {
+  id: Id;
+  query: string;
+  performedBy: string;
+  performedAt: IsoDateTime;
+  status: ConflictStatus;
+  /** Dossier visé par la vérification (ex. ouverture d'un nouveau mandat), facultatif. */
+  matterId: Id | null;
+  hits: ConflictCheckHit[];
+  updatedAt: IsoDateTime | null;
+  updatedBy: string | null;
+}
+
 /** Instantané complet des données : un cabinet de taille petite/moyenne tient en mémoire. */
 export interface FirmSnapshot {
   firmName: string;
@@ -162,6 +189,7 @@ export interface FirmSnapshot {
   timeEntries: TimeEntry[];
   invoices: Invoice[];
   documents: MatterDocument[];
+  conflictChecks: ConflictCheck[];
 }
 
 /** Entrée de saisie de temps (sans id ni statut). */

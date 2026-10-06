@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { migrate, Repository } from './repository';
+import { MIGRATIONS } from './migrations';
 
 function freshRepo() {
   const db = new Database(':memory:');
@@ -14,7 +15,7 @@ function freshRepo() {
 describe('dépôt SQLite', () => {
   it('migre et amorce les données de démonstration', () => {
     const { repo, db } = freshRepo();
-    expect(db.pragma('user_version', { simple: true })).toBe(1);
+    expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length);
     const s = repo.getSnapshot();
     expect(s.practiceAreas).toHaveLength(5);
     expect(s.matters.length).toBeGreaterThan(10);
@@ -70,5 +71,44 @@ describe('dépôt SQLite', () => {
     repo.setMatterStage('m-001', 'cloture');
     expect(repo.getSnapshot().matters.find((m) => m.id === 'm-001')?.stage).toBe('cloture');
     expect(() => repo.setMatterStage('m-001', 'inconnue' as never)).toThrow();
+  });
+
+  it('migration v1 → v2 conserve les vérifications existantes', () => {
+    const db = new Database(':memory:');
+    db.exec(MIGRATIONS[0]);
+    db.pragma('user_version = 1');
+    db.prepare("INSERT INTO conflict_checks (id, query, performed_by, performed_at, results_json) VALUES ('c1', 'X', 'HB', '2026-01-01', '[]')").run();
+    migrate(db);
+    expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length);
+    expect(db.prepare('SELECT status, matter_id FROM conflict_checks').get()).toEqual({ status: 'en_cours', matter_id: null });
+  });
+
+  it('vérification de conflits enregistrée, recherche refaite côté données', () => {
+    const { repo, db } = freshRepo();
+    const c = repo.recordConflictCheck('Béton Laurentides inc.', 'hb');
+    expect(c.status).toBe('potentiel');
+    expect(c.performedBy).toBe('HB');
+    expect(c.hits[0].partyName).toBe('Béton Laurentides ltée');
+    expect(c.hits[0].roles.some((r) => r.role === 'adverse')).toBe(true);
+    const clear = repo.recordConflictCheck('Zyxw Qrst', 'HB');
+    expect(clear.status).toBe('clair');
+    expect(clear.hits).toEqual([]);
+    expect(() => repo.recordConflictCheck('  ', 'HB')).toThrow();
+    expect(() => repo.recordConflictCheck('X', '1')).toThrow();
+    const checks = repo.getSnapshot().conflictChecks;
+    expect(checks.map((x) => x.id)).toEqual(expect.arrayContaining([c.id, clear.id]));
+    expect((db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'conflict_check'").get() as { n: number }).n).toBe(2);
+  });
+
+  it('mise à jour du statut et du dossier visé, journalisée', () => {
+    const { repo, db } = freshRepo();
+    const c = repo.recordConflictCheck('Béton Laurentides', 'HB');
+    repo.updateConflictCheck(c.id, { status: 'confirme', matterId: 'm-002' }, 'so');
+    const after = repo.getSnapshot().conflictChecks.find((x) => x.id === c.id)!;
+    expect(after).toMatchObject({ status: 'confirme', matterId: 'm-002', updatedBy: 'SO' });
+    expect(() => repo.updateConflictCheck(c.id, { status: 'inconnu' as never }, 'SO')).toThrow();
+    expect(() => repo.updateConflictCheck(c.id, { matterId: 'zzz' }, 'SO')).toThrow();
+    const log = db.prepare("SELECT details_json FROM audit_log WHERE action = 'update_conflict_check'").get() as { details_json: string };
+    expect(JSON.parse(log.details_json).to).toEqual({ status: 'confirme', matterId: 'm-002' });
   });
 });

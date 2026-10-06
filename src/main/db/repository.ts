@@ -3,11 +3,12 @@
  */
 import type Database from 'better-sqlite3';
 import type {
-  FirmSnapshot, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
+  ConflictCheck, ConflictStatus, FirmSnapshot, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
 } from '@shared/types';
+import { CONFLICT_STATUSES, PIPELINE_STAGES } from '@shared/types';
+import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
-import { PIPELINE_STAGES } from '@shared/types';
 import { buildDemoSnapshot } from '@shared/seed';
 import { MIGRATIONS } from './migrations';
 
@@ -21,6 +22,13 @@ export function migrate(db: Database.Database): void {
       db.pragma(`user_version = ${v + 1}`);
     })();
   }
+}
+
+function rowToCheck(r: Row): ConflictCheck {
+  return {
+    id: r.id, query: r.query, performedBy: r.performed_by, performedAt: r.performed_at, status: r.status,
+    matterId: r.matter_id, hits: JSON.parse(r.results_json), updatedAt: r.updated_at, updatedBy: r.updated_by,
+  };
 }
 
 export class Repository {
@@ -77,6 +85,7 @@ export class Repository {
         id: r.id, matterId: r.matter_id, title: r.title, category: r.category, exhibit: r.exhibit,
         filePath: r.file_path, addedAt: r.added_at,
       })),
+      conflictChecks: all('SELECT * FROM conflict_checks ORDER BY performed_at DESC').map(rowToCheck),
     };
   }
 
@@ -104,6 +113,55 @@ export class Repository {
         .run(new Date().toISOString(), id);
       if (res.changes !== 1) throw new Error('Échéance introuvable ou déjà fermée.');
       this.audit('local', 'complete', 'deadline', id);
+    })();
+  }
+
+  recordConflictCheck(query: string, actor: string, matterId: Id | null = null): ConflictCheck {
+    const who = normalizeInitials(actor);
+    const q = query.trim().slice(0, 300);
+    if (normalizeName(q).length === 0) throw new Error('Recherche vide.');
+    if (matterId && !this.db.prepare('SELECT 1 FROM matters WHERE id = ?').get(matterId)) throw new Error('Dossier introuvable.');
+    // La recherche est refaite ici, sur les données de la base : la trace fait foi.
+    const hits = toCheckHits(searchConflicts(q, this.getSnapshot()));
+    const check: ConflictCheck = {
+      id: `cc-${crypto.randomUUID()}`,
+      query: q,
+      performedBy: who,
+      performedAt: new Date().toISOString(),
+      status: initialConflictStatus(hits),
+      matterId,
+      hits,
+      updatedAt: null,
+      updatedBy: null,
+    };
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO conflict_checks (id, query, performed_by, performed_at, results_json, status, matter_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(check.id, check.query, who, check.performedAt, JSON.stringify(hits), check.status, matterId);
+      this.audit(who, 'conflict_check', 'conflict_check', check.id, { query: q, hits: hits.length, status: check.status });
+    })();
+    return check;
+  }
+
+  updateConflictCheck(id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }, actor: string): void {
+    const who = normalizeInitials(actor);
+    if (patch.status !== undefined && !CONFLICT_STATUSES.includes(patch.status)) throw new Error('Statut invalide.');
+    this.db.transaction(() => {
+      const prev = this.db.prepare('SELECT status, matter_id FROM conflict_checks WHERE id = ?').get(id) as Row | undefined;
+      if (!prev) throw new Error('Vérification introuvable.');
+      const status = patch.status ?? prev.status;
+      const matterId = patch.matterId === undefined ? prev.matter_id : patch.matterId;
+      if (matterId && !this.db.prepare('SELECT 1 FROM matters WHERE id = ?').get(matterId)) throw new Error('Dossier introuvable.');
+      this.db
+        .prepare('UPDATE conflict_checks SET status = ?, matter_id = ?, updated_at = ?, updated_by = ? WHERE id = ?')
+        .run(status, matterId, new Date().toISOString(), who, id);
+      this.audit(who, 'update_conflict_check', 'conflict_check', id, {
+        from: { status: prev.status, matterId: prev.matter_id },
+        to: { status, matterId },
+      });
     })();
   }
 
@@ -194,6 +252,11 @@ export class Repository {
       s.invoices.forEach((r) => iv.run(r));
       const doc = ins('INSERT INTO documents VALUES (@id, @matterId, @title, @category, @exhibit, @filePath, @addedAt)');
       s.documents.forEach((r) => doc.run(r));
+      const cc = ins(`INSERT INTO conflict_checks (id, query, performed_by, performed_at, results_json, status, matter_id, updated_at, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      s.conflictChecks.forEach((c) =>
+        cc.run(c.id, c.query, c.performedBy, c.performedAt, JSON.stringify(c.hits), c.status, c.matterId, c.updatedAt, c.updatedBy),
+      );
     })();
   }
 }

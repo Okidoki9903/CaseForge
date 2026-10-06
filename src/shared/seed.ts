@@ -249,5 +249,6 @@ export function buildDemoSnapshot(today: string): FirmSnapshot {
     timeEntries,
     invoices,
     documents,
+    conflictChecks: [],
   };
 }

@@ -4,7 +4,7 @@
  * sont recalculées dans `useDerived` à partir de l'instantané.
  */
 import { create } from 'zustand';
-import type { FirmSnapshot, Id, PipelineStage, TimeEntry, TimeEntryStatus } from '@shared/types';
+import type { ConflictCheck, ConflictStatus, FirmSnapshot, Id, PipelineStage, TimeEntry, TimeEntryStatus } from '@shared/types';
 import { timeEntriesToCsv } from '@shared/domain/time';
 import { localToday } from '@shared/domain/dates';
 import { api } from '../api';
@@ -49,6 +49,8 @@ interface FirmState {
   exportCsv: (entries: TimeEntry[], label: string) => Promise<void>;
   timeDrawerOpen: boolean;
   setTimeDrawerOpen: (open: boolean) => void;
+  recordConflictCheck: (query: string, matterId?: Id | null) => Promise<ConflictCheck | null>;
+  updateConflictCheck: (id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }) => Promise<void>;
   /** Initiales de l'utilisateur de la session (auteur des actions journalisées). */
   actor: () => string;
   startTimer: (matterId: Id) => void;
@@ -154,6 +156,16 @@ export const useFirm = create<FirmState>((set, get) => {
       // Durée brute : la couche de données arrondit au dixième d'heure supérieur (6 min).
       const minutes = Math.max(0.01, (Date.now() - t.startedAt) / 60000);
       await get().logMinutes(t.matterId, minutes, description || 'Chronomètre');
+    },
+    recordConflictCheck: async (query, matterId = null) => {
+      let check: ConflictCheck | null = null;
+      await run(async () => {
+        check = await api.recordConflictCheck(query, get().actor(), matterId);
+      });
+      return check;
+    },
+    updateConflictCheck: async (id, patch) => {
+      await run(() => api.updateConflictCheck(id, patch, get().actor()));
     },
     resetDemo: async () => {
       await run(() => api.resetDemoData());

@@ -5,7 +5,7 @@
  * La normalisation retire accents, ponctuation et formes juridiques (inc., ltée,
  * s.e.n.c.r.l., LLP…) pour que « Groupe Tremblay Ltée » trouve « GROUPE TREMBLAY INC. ».
  */
-import type { FirmSnapshot, Matter, Party, PartyRole } from '../types';
+import type { ConflictCheck, ConflictCheckHit, ConflictStatus, FirmSnapshot, Id, Matter, Party, PartyRole } from '../types';
 
 const LEGAL_FORMS = new Set([
   'inc', 'incorporee', 'incorporated', 'ltee', 'limitee', 'ltd', 'limited', 'corp', 'corporation', 'cie', 'co',
@@ -76,4 +76,50 @@ export function searchConflicts(query: string, s: FirmSnapshot, threshold = 0.6)
     hits.push({ party, matchedName, score: best, roles });
   }
   return hits.sort((a, b) => b.score - a.score);
+}
+
+/* ─────────────── Traçabilité des vérifications ─────────────── */
+
+/** Instantané sérialisable des correspondances (indépendant des modifications futures). */
+export function toCheckHits(hits: ConflictHit[]): ConflictCheckHit[] {
+  return hits.map((h) => ({
+    partyId: h.party.id,
+    partyName: h.party.name,
+    matchedName: h.matchedName,
+    score: Math.round(h.score * 100) / 100,
+    roles: h.roles.map((r) => ({ matterId: r.matter.id, role: r.role })),
+  }));
+}
+
+/** Statut initial automatique : aucune correspondance → « Clair », sinon « Conflit potentiel ». */
+export function initialConflictStatus(hits: ConflictCheckHit[]): ConflictStatus {
+  return hits.length === 0 ? 'clair' : 'potentiel';
+}
+
+/** Requête normalisée, pour éviter d'enregistrer deux fois la même recherche. */
+export function normalizedQuery(query: string): string {
+  return normalizeName(query).join(' ');
+}
+
+export const OPEN_CONFLICT_STATUSES: ReadonlySet<ConflictStatus> = new Set(['potentiel', 'confirme']);
+
+/**
+ * Dossiers concernés par une vérification non résolue (potentielle ou confirmée) :
+ * le dossier visé et tous les dossiers où apparaît une partie correspondante.
+ * Le statut le plus grave l'emporte.
+ */
+export function flaggedMatters(checks: ConflictCheck[]): Map<Id, { status: ConflictStatus; checks: ConflictCheck[] }> {
+  const out = new Map<Id, { status: ConflictStatus; checks: ConflictCheck[] }>();
+  for (const c of checks) {
+    if (!OPEN_CONFLICT_STATUSES.has(c.status)) continue;
+    const ids = new Set<Id>(c.hits.flatMap((h) => h.roles.map((r) => r.matterId)));
+    if (c.matterId) ids.add(c.matterId);
+    for (const id of ids) {
+      const cur = out.get(id) ?? { status: c.status, checks: [] };
+      cur.checks.push(c);
+      if (c.status === 'confirme') cur.status = 'confirme';
+      out.set(id, cur);
+    }
+  }
+  return out;
 }

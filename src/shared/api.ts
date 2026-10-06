@@ -5,7 +5,9 @@
  *  - Electron : SQLite (better-sqlite3) dans le processus principal, via IPC.
  *  - Mode démo navigateur : IndexedDB.
  */
-import type { FirmSnapshot, Id, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus } from './types';
+import type {
+  ConflictCheck, ConflictStatus, FirmSnapshot, Id, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
+} from './types';
 
 export interface CaseForgeApi {
   /** Indique le moteur de stockage, affiché dans l'interface pour la transparence. */
@@ -24,6 +26,13 @@ export interface CaseForgeApi {
    * téléchargement local dans le navigateur). Retourne false si l'utilisateur annule.
    */
   saveTextFile(suggestedName: string, content: string): Promise<boolean>;
+  /**
+   * Exécute ET enregistre une vérification de conflits. La recherche est refaite par la
+   * couche de données sur ses propres données (la trace ne dépend pas de l'interface).
+   */
+  recordConflictCheck(query: string, actor: string, matterId?: Id | null): Promise<ConflictCheck>;
+  /** Change le statut et/ou le dossier visé d'une vérification ; journalisé. */
+  updateConflictCheck(id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }, actor: string): Promise<void>;
   /** Remet les données de démonstration à zéro. */
   resetDemoData(): Promise<void>;
 }
@@ -37,5 +46,7 @@ export const IPC = {
   addTimeEntry: 'cf:addTimeEntry',
   setTimeEntryStatus: 'cf:setTimeEntryStatus',
   saveTextFile: 'cf:saveTextFile',
+  recordConflictCheck: 'cf:recordConflictCheck',
+  updateConflictCheck: 'cf:updateConflictCheck',
   resetDemoData: 'cf:resetDemoData',
 } as const;

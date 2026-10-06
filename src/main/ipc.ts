@@ -5,7 +5,7 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { IPC } from '@shared/api';
-import type { NewTimeEntry, PipelineStage, TimeEntryStatus } from '@shared/types';
+import type { ConflictStatus, NewTimeEntry, PipelineStage, TimeEntryStatus } from '@shared/types';
 import { localToday } from '@shared/domain/dates';
 import type { Repository } from './db/repository';
 
@@ -63,6 +63,23 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
     if (res.canceled || !res.filePath) return false;
     await writeFile(res.filePath, content, 'utf8');
     return true;
+  });
+
+  ipcMain.handle(IPC.recordConflictCheck, (_e, query: unknown, actor: unknown, matterId: unknown) =>
+    repo.recordConflictCheck(str(query, 'query'), str(actor, 'actor'), matterId ? str(matterId, 'matterId') : null),
+  );
+
+  ipcMain.handle(IPC.updateConflictCheck, (_e, id: unknown, patch: unknown, actor: unknown) => {
+    if (!patch || typeof patch !== 'object') throw new Error('Modification invalide.');
+    const p = patch as { status?: unknown; matterId?: unknown };
+    repo.updateConflictCheck(
+      str(id, 'id'),
+      {
+        status: p.status === undefined ? undefined : (str(p.status, 'status') as ConflictStatus),
+        matterId: p.matterId === undefined ? undefined : p.matterId === null ? null : str(p.matterId, 'matterId'),
+      },
+      str(actor, 'actor'),
+    );
   });
 
   ipcMain.handle(IPC.resetDemoData, () => {

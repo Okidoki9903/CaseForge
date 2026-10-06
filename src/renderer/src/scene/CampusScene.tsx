@@ -21,7 +21,7 @@ import { StaffUnit } from './StaffUnit';
 const ISO_POLAR = Math.atan(Math.SQRT2);
 
 export function CampusScene({ derived }: { derived: Derived }) {
-  const { snapshot, today, alerts, alertsByMatter, matterLevel, loads, areaById } = derived;
+  const { snapshot, today, alerts, alertsByMatter, matterLevel, loads, areaById, conflicts } = derived;
   const select = useFirm((s) => s.select);
   const layout = useMemo(() => computeLayout(snapshot), [snapshot]);
 
@@ -91,6 +91,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
               target={layout.matters.get(m.id)!}
               level={matterLevel(m.id)}
               nextAlert={pending}
+              conflict={conflicts.get(m.id)?.status}
             />
           );
         })}

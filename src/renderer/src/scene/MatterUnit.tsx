@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html, RoundedBox } from '@react-three/drei';
 import { AdditiveBlending, type Group, type Mesh, type MeshBasicMaterial, Vector3 } from 'three';
 import { useTranslation } from 'react-i18next';
-import type { Matter } from '@shared/types';
+import type { ConflictStatus, Matter } from '@shared/types';
 import type { AlertLevel, DeadlineAlert } from '@shared/domain/alerts';
 import { useFirm } from '../store/useFirm';
 import { ALERT_COLORS, SCENE_COLORS } from './palette';
@@ -15,7 +15,11 @@ interface Props {
   target: Vec3;
   level: AlertLevel;
   nextAlert: DeadlineAlert | undefined;
+  /** Vérification de conflits non résolue visant ce dossier. */
+  conflict?: ConflictStatus;
 }
+
+const CONFLICT_COLOR = { potentiel: '#8e4ec6', confirme: '#6b21a8' } as const;
 
 const tmp = new Vector3();
 
@@ -23,7 +27,7 @@ const tmp = new Vector3();
  * Un dossier = une unité sur le quai de son pôle.
  * Il glisse vers la plateforme de son étape quand celle-ci change.
  */
-export function MatterUnit({ matter, color, target, level, nextAlert }: Props) {
+export function MatterUnit({ matter, color, target, level, nextAlert, conflict }: Props) {
   const { t } = useTranslation();
   const group = useRef<Group>(null);
   const select = useFirm((s) => s.select);
@@ -91,6 +95,21 @@ export function MatterUnit({ matter, color, target, level, nextAlert }: Props) {
       </group>
 
       {alarming && !dimmed && <DeadlineBeacon color={ALERT_COLORS[level]} strong={unacknowledged} />}
+
+      {/* Conflit d'intérêts potentiel / confirmé : anneau violet et pastille ⚖ */}
+      {(conflict === 'potentiel' || conflict === 'confirme') && !dimmed && (
+        <>
+          <mesh rotation-x={-Math.PI / 2} position-y={-0.26}>
+            <ringGeometry args={[0.66, 0.78, 40]} />
+            <meshBasicMaterial color={CONFLICT_COLOR[conflict]} />
+          </mesh>
+          <Html position={[0.45, 0.75, 0]} center zIndexRange={[20, 0]}>
+            <div className="map-label" style={{ background: CONFLICT_COLOR[conflict], color: '#fff', padding: '1px 6px' }} title={t(`conflicts.status.${conflict}`)}>
+              ⚖
+            </div>
+          </Html>
+        </>
+      )}
 
       {(alarming || level === 'urgent' || hovered || selected) && !dimmed && (
         <Html position={[0, 1.05, 0]} center zIndexRange={[20, 0]}>

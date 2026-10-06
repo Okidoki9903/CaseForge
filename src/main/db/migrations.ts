@@ -150,4 +150,13 @@ export const MIGRATIONS: string[] = [
     details_json  TEXT NOT NULL DEFAULT '{}'
   );
   `,
+  /* v2 — statuts des vérifications de conflits, index d'audit */ `
+  ALTER TABLE conflict_checks ADD COLUMN status TEXT NOT NULL DEFAULT 'en_cours'
+    CHECK (status IN ('en_cours','clair','potentiel','confirme'));
+  ALTER TABLE conflict_checks ADD COLUMN matter_id TEXT REFERENCES matters(id) ON DELETE SET NULL;
+  ALTER TABLE conflict_checks ADD COLUMN updated_at TEXT;
+  ALTER TABLE conflict_checks ADD COLUMN updated_by TEXT;
+  CREATE INDEX idx_conflict_checks_at ON conflict_checks(performed_at);
+  CREATE INDEX idx_audit_entity ON audit_log(entity, entity_id);
+  `,
 ];

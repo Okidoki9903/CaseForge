@@ -13,6 +13,8 @@ import { hours, money, percent } from '../lib/format';
 import { LOAD_COLORS, ROLE_COLORS, STAGE_COLORS } from '../scene/palette';
 import { AlertCard } from './AlertCenter';
 import { TimePanel } from './TimePanel';
+import { History } from './ConflictSearch';
+import { CONFLICT_COLORS } from './conflictStyles';
 import { Bar, Icon, IconButton, LevelBadge, Section, Stat } from './primitives';
 
 export function DetailPanel({ derived }: { derived: Derived }) {
@@ -107,6 +109,8 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
         </dl>
       </Header>
 
+      <MatterConflicts matterId={m.id} derived={derived} />
+
       <Section title={t('matter.pipeline')}>
         <div className="flex items-center gap-1">
           <IconButton title={t('matter.prev')} onClick={() => stageIndex > 0 && void setStage(m.id, PIPELINE_STAGES[stageIndex - 1])}><Icon.left /></IconButton>
@@ -191,6 +195,34 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
         </ul>
       </Section>
     </>
+  );
+}
+
+/** Vérifications de conflits visant ce dossier ou mentionnant une de ses parties. */
+function MatterConflicts({ matterId, derived }: { matterId: string; derived: Derived }) {
+  const { t } = useTranslation();
+  const setConflictOpen = useFirm((s) => s.setConflictOpen);
+  const flag = derived.conflicts.get(matterId);
+  const related = derived.snapshot.conflictChecks.filter(
+    (c) => c.matterId === matterId || c.hits.some((h) => h.roles.some((r) => r.matterId === matterId)),
+  );
+  if (related.length === 0) return null;
+  return (
+    <Section
+      title={t('conflicts.section')}
+      aside={
+        <button type="button" onClick={() => setConflictOpen(true)} className="text-[11px] font-semibold text-[var(--color-brand)] hover:underline">
+          Ctrl+K
+        </button>
+      }
+    >
+      {flag && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white" style={{ background: CONFLICT_COLORS[flag.status] }}>
+          <Icon.alert /> {t('conflicts.flagged')} — {t(`conflicts.status.${flag.status}`)}
+        </div>
+      )}
+      <History checks={related} derived={derived} limit={8} />
+    </Section>
   );
 }
 
