@@ -18,7 +18,10 @@ describe('dépôt SQLite', () => {
     expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length);
     const s = repo.getSnapshot();
     expect(s.practiceAreas).toHaveLength(5);
-    expect(s.matters.length).toBeGreaterThan(10);
+    expect(s.matters.length).toBeGreaterThanOrEqual(12);
+    // Vérifications de conflits et historique de démonstration persistés dans SQLite.
+    expect(s.conflictChecks).toHaveLength(4);
+    expect(s.auditLog[0].action).toBe('set_stage');
     expect(s.matters.find((m) => m.id === 'm-001')?.teamIds).toEqual(['st-02', 'st-08']);
   });
 
@@ -34,7 +37,7 @@ describe('dépôt SQLite', () => {
     repo.acknowledgeDeadline(d.id, 'hb');
     const after = repo.getSnapshot().deadlines.find((x) => x.id === d.id)!;
     expect(after.acknowledgedBy).toBe('HB');
-    expect((db.prepare('SELECT COUNT(*) n FROM audit_log').get() as { n: number }).n).toBe(1);
+    expect((db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'acknowledge'").get() as { n: number }).n).toBe(1);
   });
 
   it('saisie de temps : arrondi à 0,1 h et taux figé à la saisie', () => {
@@ -74,11 +77,11 @@ describe('dépôt SQLite', () => {
     repo.setMatterStage('m-001', 'cloture', 'HB');
     expect(() => repo.setMatterStage('m-001', 'inconnue' as never, 'HB')).toThrow();
     expect(() => repo.setMatterStage('m-001', 'depot', '')).toThrow();
-    const log = repo.getSnapshot().auditLog.filter((a) => a.action === 'set_stage');
+    const log = repo.getSnapshot().auditLog.filter((a) => a.action === 'set_stage' && a.entityId === 'm-001');
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({ actor: 'HB', entity: 'matter', entityId: 'm-001', details: { from: 'audience', to: 'cloture' } });
     expect(Number.isNaN(Date.parse(log[0].at))).toBe(false);
-    expect((db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'set_stage'").get() as { n: number }).n).toBe(1);
+    expect((db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'set_stage' AND entity_id = 'm-001'").get() as { n: number }).n).toBe(1);
   });
 
   it('migration v1 → v2 conserve les vérifications existantes', () => {

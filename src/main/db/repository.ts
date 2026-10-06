@@ -266,6 +266,8 @@ export class Repository {
       s.conflictChecks.forEach((c) =>
         cc.run(c.id, c.query, c.performedBy, c.performedAt, JSON.stringify(c.hits), c.status, c.matterId, c.updatedAt, c.updatedBy),
       );
+      const au = ins('INSERT INTO audit_log (at, actor, action, entity, entity_id, details_json) VALUES (?, ?, ?, ?, ?, ?)');
+      [...s.auditLog].reverse().forEach((a) => au.run(a.at, a.actor, a.action, a.entity, a.entityId, JSON.stringify(a.details)));
     })();
   }
 }
