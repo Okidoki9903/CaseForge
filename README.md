@@ -6,6 +6,13 @@
 
 🎬 Scénario de démo de 60 à 90 secondes : [docs/DEMO.md](docs/DEMO.md)
 
+🌐 **Démo en ligne, sans rien installer : https://okidoki9903.github.io/CaseForge/**
+
+La démo publique est la version navigateur, entièrement côté client :
+- les données (fictives) restent dans le navigateur du visiteur, dans IndexedDB ;
+- une politique de sécurité stricte (`connect-src 'self'`) interdit au navigateur tout envoi vers un autre serveur ;
+- elle est redéployée automatiquement à chaque push sur `main` (`.github/workflows/pages.yml`).
+
 > **Statut :** v0.3, prêt pour une première démonstration à un avocat ; application Electron testée de bout en bout. Les calendriers du Québec, de l'Ontario et des Cours fédérales ont été validés ; la C.-B., l'Alberta et une partie du catalogue de délais restent **à valider** (voir [Droit modélisé](#droit-modélisé-et-points-à-valider)).
 
 ---
