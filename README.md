@@ -94,7 +94,7 @@ Défini dans `src/main/db/migrations.ts`.
 | `time_entries` | Saisie de temps | `minutes`, `rate_cents` (figé à la saisie), `billable`, `status` (wip/facture/radie) |
 | `invoices` | Factures | `standard_value_cents`, `amount_cents`, `paid_cents` (réalisation et recouvrement) |
 | `documents` | Pièces (références vers des **fichiers locaux** seulement) | `category`, `exhibit` (P-1, D-3…), `file_path` |
-| `conflict_checks` | Trace des vérifications de conflits (preuve de diligence) | `query`, `performed_by`, `results_json` |
+| `conflict_checks` | Trace des vérifications de conflits (preuve de diligence ; table prête, journalisation à brancher) | `query`, `performed_by`, `results_json` |
 | `audit_log` | Journal (accusés de réception, changements d'étape) | `actor`, `action`, `entity`, `entity_id`, `details_json` |
 
 ## 3. Structure du projet
@@ -164,7 +164,7 @@ src/
    - point rouge sur l'étape du pipeline ;
    - KPI pulsant.
 4. **Bannière persistante**, qui ne se ferme pas tant qu'une échéance critique ou dépassée n'a pas reçu d'**accusé de réception nominatif** (initiales). L'accusé est journalisé dans `audit_log`.
-5. **Notification du système d'exploitation**, une fois par jour et par échéance, toutes les 15 minutes de vérification, même si la fenêtre est réduite.
+5. **Notification du système d’exploitation**, même si la fenêtre est réduite : vérification toutes les 15 minutes, une seule notification par échéance et par jour.
 6. **Moteur de délais expliqué** (`deadlineRules.ts`). Chaque calcul retourne son raisonnement : jour du point de départ exclu, report pour cause de jour non juridique, fondement légal. Par prudence, CaseForge retient la **date brute**, avant report, comme échéance d'alerte.
 
 ## Points de droit à valider
