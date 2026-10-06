@@ -6,6 +6,7 @@
  *  - CSP stricte sans aucune origine distante.
  */
 import { app, session, type WebContents } from 'electron';
+import { e2eLog } from './e2eLog';
 
 const DEV_URL = process.env.ELECTRON_RENDERER_URL;
 
@@ -39,7 +40,10 @@ export function hardenSession(): void {
   const ses = session.defaultSession;
   ses.webRequest.onBeforeRequest((details, callback) => {
     const allowed = isAllowedUrl(details.url);
-    if (!allowed) console.warn(`[CaseForge] Requête réseau bloquée : ${details.url}`);
+    if (!allowed) {
+      console.warn(`[CaseForge] Requête réseau bloquée : ${details.url}`);
+      e2eLog(`[réseau bloqué] ${details.url}`);
+    }
     callback({ cancel: !allowed });
   });
   ses.webRequest.onHeadersReceived((details, callback) => {

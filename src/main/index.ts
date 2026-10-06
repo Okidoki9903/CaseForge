@@ -2,7 +2,8 @@
  * Processus principal Electron — CaseForge.
  * Toutes les données vivent dans `userData/caseforge.sqlite` sur le poste de l'utilisateur.
  */
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { localToday } from '@shared/domain/dates';
 import { dailyBackup, openDatabase } from './db/connection';
@@ -10,6 +11,13 @@ import { Repository } from './db/repository';
 import { registerIpc } from './ipc';
 import { DeadlineNotifier } from './notifier';
 import { hardenSession, hardenWebContents } from './security';
+import { describeStartupError } from './startupErrors';
+
+// Dossier de données personnalisable (tests, installation portable, poste partagé).
+if (process.env.CASEFORGE_DATA_DIR) {
+  mkdirSync(process.env.CASEFORGE_DATA_DIR, { recursive: true });
+  app.setPath('userData', process.env.CASEFORGE_DATA_DIR);
+}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -57,9 +65,23 @@ if (!app.requestSingleInstanceLock()) {
     app.on('web-contents-created', (_e, contents) => hardenWebContents(contents));
 
     const userData = app.getPath('userData');
-    const db = openDatabase(join(userData, 'caseforge.sqlite'));
-    const repo = new Repository(db);
-    if (repo.isEmpty()) repo.seed(localToday()); // première ouverture : cabinet de démonstration
+    const dbPath = join(userData, 'caseforge.sqlite');
+    let db: ReturnType<typeof openDatabase>;
+    let repo: Repository;
+    try {
+      db = openDatabase(dbPath);
+      repo = new Repository(db);
+      if (repo.isEmpty()) repo.seed(localToday()); // première ouverture : cabinet de démonstration
+    } catch (err) {
+      // Message clair plutôt qu'une fenêtre blanche ou une pile d'appels.
+      const e = describeStartupError(err, dbPath);
+      console.error(`[CaseForge] ${e.title}\n${e.message}`);
+      // Boîte modale pour l'utilisateur ; en test automatisé, la sortie d'erreur suffit.
+      if (!process.env.CASEFORGE_E2E) dialog.showErrorBox(e.title, e.message);
+      app.exit(1);
+      return;
+    }
+    console.log(`[CaseForge] Données locales : ${dbPath}`);
     await dailyBackup(db, join(userData, 'sauvegardes'), localToday()).catch((err) =>
       console.error('[CaseForge] Échec de la sauvegarde locale', err),
     );

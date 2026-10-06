@@ -6,6 +6,7 @@ import { Notification, type BrowserWindow } from 'electron';
 import { buildAlerts } from '@shared/domain/alerts';
 import { localToday } from '@shared/domain/dates';
 import type { Repository } from './db/repository';
+import { e2eLog } from './e2eLog';
 
 const CHECK_EVERY_MS = 15 * 60 * 1000;
 
@@ -25,7 +26,7 @@ export class DeadlineNotifier {
   }
 
   check(): void {
-    if (!Notification.isSupported()) return;
+    const supported = Notification.isSupported();
     const today = localToday();
     const s = this.repo.getSnapshot();
     const pending = buildAlerts(s.deadlines, s.matters, today).filter((a) => a.requiresAcknowledgement);
@@ -34,11 +35,12 @@ export class DeadlineNotifier {
       if (this.notified.has(key)) continue;
       this.notified.add(key);
       const overdue = a.level === 'depasse';
-      const n = new Notification({
-        title: overdue ? `⛔ Échéance DÉPASSÉE — ${a.matter.number}` : `⚠️ Échéance critique — ${a.matter.number}`,
-        body: `${a.deadline.title} · ${a.deadline.dueDate}\n${a.matter.title}`,
-        urgency: 'critical',
-      });
+      const title = overdue ? `⛔ Échéance DÉPASSÉE — ${a.matter.number}` : `⚠️ Échéance critique — ${a.matter.number}`;
+      const body = `${a.deadline.title} · ${a.deadline.dueDate}\n${a.matter.title}`;
+      // Trace locale pour les tests de bout en bout (inactive en utilisation normale).
+      e2eLog(`[notification] ${title} | ${a.deadline.title}`);
+      if (!supported) continue;
+      const n = new Notification({ title, body, urgency: 'critical' });
       n.on('click', () => {
         const win = this.getWindow();
         if (!win) return;
