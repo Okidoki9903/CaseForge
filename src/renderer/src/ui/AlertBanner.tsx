@@ -31,7 +31,7 @@ export function AlertBanner({ derived }: { derived: Derived }) {
   const color = ALERT_COLORS[pending[0].level];
 
   return (
-    <div className="absolute top-[86px] z-30" style={{ left: panelOpen ? 404 : 12, right: drawerWidth ? drawerWidth + 24 : 12 }}>
+    <div className="absolute top-[var(--hud-top)] z-30" style={{ left: panelOpen ? 404 : 12, right: drawerWidth ? drawerWidth + 24 : 12 }}>
       <div
         role="alert"
         className="pointer-events-auto mx-auto flex max-w-[860px] items-center gap-3 rounded-xl px-4 py-2.5 text-white shadow-xl"

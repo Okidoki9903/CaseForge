@@ -2,6 +2,22 @@
 export const fr = {
   webDemo: { banner: 'Version démo navigateur — les données restent uniquement sur votre ordinateur', details: 'Données fictives, enregistrées dans ce navigateur (IndexedDB). Aucune information n’est envoyée à un serveur.' },
   app: { tagline: 'Centre de commandement du cabinet', local: '100 % local', localHint: 'Aucune donnée ne quitte ce poste. Stockage : {{storage}}.', loading: 'Chargement des données locales…', session: 'Session' },
+  hud: {
+    wip: 'WIP non facturé',
+    wipWeek: '{{amount}} cette semaine',
+    wipDetail: '{{hours}} h · {{count}} dossiers',
+    billable: 'Heures facturables',
+    billableSub: 'ce mois, vs même période le mois dernier',
+    billableSubNone: 'ce mois',
+    critical: 'Échéances critiques',
+    toAck_one: '{{count}} à accuser',
+    toAck_other: '{{count}} à accuser',
+    allAck: 'Toutes accusées',
+    today: 'Aujourd’hui',
+    todaySub: '{{count}} dossiers actifs · réalisation {{rate}}',
+    search: 'Rechercher un nom, vérifier un conflit…',
+    newMatter: 'Nouveau dossier',
+  },
   kpi: {
     activeMatters: 'Dossiers actifs',
     critical: 'Échéances critiques',

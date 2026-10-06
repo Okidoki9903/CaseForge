@@ -80,7 +80,7 @@ export function ReportsDrawer({ derived }: { derived: Derived }) {
   );
 
   return (
-    <aside className="glass animate-panel pointer-events-auto absolute bottom-3 right-3 top-[86px] z-40 flex w-[520px] flex-col overflow-hidden rounded-2xl">
+    <aside className="glass animate-panel pointer-events-auto absolute bottom-3 right-3 top-[var(--hud-top)] z-40 flex w-[520px] flex-col overflow-hidden rounded-2xl">
       <header className="px-4 pb-2 pt-3">
         <div className="flex items-start justify-between">
           <div>

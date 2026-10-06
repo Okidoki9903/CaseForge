@@ -90,7 +90,7 @@ async function launch(logs) {
 
   // Export CSV (tiroir WIP) via la boîte de dialogue native.
   const before = new Set(readdirSync(outDir));
-  await win.getByRole('button', { name: /Travaux en cours/ }).click();
+  await win.getByRole('button', { name: /WIP non facturé/ }).click();
   await win.getByRole('button', { name: /Exporter CSV \(/ }).click();
   await win.waitForTimeout(800);
   const csv = readdirSync(outDir).find((f) => f.endsWith('.csv') && !before.has(f));

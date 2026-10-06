@@ -4,6 +4,22 @@ import type { Messages } from './fr';
 export const en: Messages = {
   webDemo: { banner: 'Browser demo — your data stays on your computer only', details: 'Fictional data, stored in this browser (IndexedDB). Nothing is sent to any server.' },
   app: { tagline: 'Firm command centre', local: '100% local', localHint: 'No data ever leaves this computer. Storage: {{storage}}.', loading: 'Loading local data…', session: 'Session' },
+  hud: {
+    wip: 'Unbilled WIP',
+    wipWeek: '{{amount}} this week',
+    wipDetail: '{{hours}} h · {{count}} matters',
+    billable: 'Billable hours',
+    billableSub: 'this month, vs same period last month',
+    billableSubNone: 'this month',
+    critical: 'Critical deadlines',
+    toAck_one: '{{count}} to acknowledge',
+    toAck_other: '{{count}} to acknowledge',
+    allAck: 'All acknowledged',
+    today: 'Today',
+    todaySub: '{{count}} active matters · realization {{rate}}',
+    search: 'Search a name, check a conflict…',
+    newMatter: 'New matter',
+  },
   kpi: {
     activeMatters: 'Active matters',
     critical: 'Critical deadlines',

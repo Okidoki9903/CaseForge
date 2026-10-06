@@ -45,7 +45,7 @@ export function DetailPanel({ derived }: { derived: Derived }) {
   return (
     <aside
       key={`${selection.kind}-${selection.id}`}
-      className="glass animate-panel pointer-events-auto absolute bottom-24 left-3 top-[86px] z-30 flex w-[380px] flex-col overflow-hidden rounded-2xl"
+      className="glass animate-panel pointer-events-auto absolute bottom-24 left-3 top-[var(--hud-top)] z-30 flex w-[380px] flex-col overflow-hidden rounded-2xl"
     >
       <div className="absolute right-2 top-2 z-10 rounded-lg bg-white/90 shadow-sm backdrop-blur">
         <IconButton onClick={() => select(null)} title={t('actions.close')}><Icon.close /></IconButton>
