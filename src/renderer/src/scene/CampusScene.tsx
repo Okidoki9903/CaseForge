@@ -227,7 +227,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
       </div>
       <div className="px-2 pt-1 text-[10px] text-slate-500">{en ? 'Drag to explore · Scroll to zoom' : 'Glisser pour explorer · Molette pour zoomer'}</div>
     </div>
-    {interiorArea && <div className="absolute bottom-48 left-4 z-20 max-w-[300px] rounded-2xl border border-white/80 bg-white/95 p-3 shadow-xl">
+    {interiorArea && <div className="absolute left-4 top-[calc(var(--hud-top)+64px)] z-30 max-h-[calc(100%-var(--hud-top)-240px)] max-w-[300px] overflow-y-auto rounded-2xl border border-white/80 bg-white/95 p-3 shadow-xl">
       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{en ? 'Inside the building' : 'À l’intérieur du bâtiment'}</div>
       <div className="mt-1 text-sm font-bold text-slate-800">{interiorArea.name}</div>
       <p className="mt-1 text-xs text-slate-500">{en ? 'The team works here and uses the entrance to collect assigned files.' : 'L’équipe travaille ici et passe par l’entrée pour récupérer ses dossiers.'}</p>
