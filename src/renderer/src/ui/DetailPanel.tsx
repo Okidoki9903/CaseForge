@@ -1,0 +1,357 @@
+/**
+ * Panneau contextuel : s'ouvre au clic sur un dossier, un pôle, un collaborateur ou un nœud externe.
+ */
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { PIPELINE_STAGES, type Matter, type Party, type PracticeArea, type Staff } from '@shared/types';
+import { ALERT_COLORS } from '@shared/domain/alerts';
+import { areaStats, matterFinancials } from '@shared/domain/metrics';
+import type { Derived } from '../store/useDerived';
+import { useFirm } from '../store/useFirm';
+import { hours, money, percent } from '../lib/format';
+import { LOAD_COLORS, ROLE_COLORS, STAGE_COLORS } from '../scene/palette';
+import { AlertCard } from './AlertCenter';
+import { Bar, Icon, IconButton, LevelBadge, Section, Stat } from './primitives';
+
+export function DetailPanel({ derived }: { derived: Derived }) {
+  const { t } = useTranslation();
+  const selection = useFirm((s) => s.selection);
+  const select = useFirm((s) => s.select);
+  if (!selection) return null;
+  const { snapshot } = derived;
+
+  let body: ReactElement | null = null;
+  if (selection.kind === 'matter') {
+    const m = snapshot.matters.find((x) => x.id === selection.id);
+    if (m) body = <MatterDetail matter={m} derived={derived} />;
+  } else if (selection.kind === 'area') {
+    const a = derived.areaById.get(selection.id);
+    if (a) body = <AreaDetail area={a} derived={derived} />;
+  } else if (selection.kind === 'staff') {
+    const p = derived.staffById.get(selection.id);
+    if (p) body = <StaffDetail staff={p} derived={derived} />;
+  } else {
+    const p = derived.partyById.get(selection.id);
+    if (p) body = <PartyDetail party={p} derived={derived} />;
+  }
+  if (!body) return null;
+
+  return (
+    <aside
+      key={`${selection.kind}-${selection.id}`}
+      className="glass animate-panel pointer-events-auto absolute bottom-24 left-3 top-[86px] z-30 flex w-[380px] flex-col overflow-hidden rounded-2xl"
+    >
+      <div className="absolute right-2 top-2 z-10">
+        <IconButton onClick={() => select(null)} title={t('actions.close')}><Icon.close /></IconButton>
+      </div>
+      <div className="scrollbar-thin flex-1 overflow-y-auto">{body}</div>
+    </aside>
+  );
+}
+
+function Header({ eyebrow, title, color, children }: { eyebrow: string; title: string; color: string; children?: ReactNode }) {
+  return (
+    <header className="px-4 pb-3 pt-4" style={{ boxShadow: `inset 4px 0 0 ${color}` }}>
+      <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>{eyebrow}</div>
+      <h2 className="pr-8 text-lg font-bold leading-tight">{title}</h2>
+      {children}
+    </header>
+  );
+}
+
+/* ─────────────────────────── Dossier ─────────────────────────── */
+
+function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived }) {
+  const { t } = useTranslation();
+  const setStage = useFirm((s) => s.setStage);
+  const timer = useFirm((s) => s.timer);
+  const startTimer = useFirm((s) => s.startTimer);
+  const stopTimer = useFirm((s) => s.stopTimer);
+  const logMinutes = useFirm((s) => s.logMinutes);
+  const select = useFirm((s) => s.select);
+  const { snapshot } = derived;
+  const area = derived.areaById.get(m.practiceAreaId)!;
+  const client = derived.partyById.get(m.clientId);
+  const fin = matterFinancials(m, snapshot);
+  const alerts = derived.alertsByMatter.get(m.id) ?? [];
+  const stageIndex = PIPELINE_STAGES.indexOf(m.stage);
+  const docs = snapshot.documents.filter((d) => d.matterId === m.id);
+  const team = [m.responsibleId, ...m.teamIds].map((id) => derived.staffById.get(id)).filter((p): p is Staff => Boolean(p));
+  const running = timer?.matterId === m.id;
+  const elapsed = useElapsed(running ? timer!.startedAt : null);
+  const marginTone = fin.marginRate >= 0.35 ? ALERT_COLORS.ok : fin.marginRate >= 0.15 ? ALERT_COLORS.attention : ALERT_COLORS.critique;
+
+  return (
+    <>
+      <Header eyebrow={`${m.number} · ${area.name}`} title={m.title} color={area.color}>
+        <dl className="mt-2 grid grid-cols-[80px_1fr] gap-y-0.5 text-xs">
+          <dt className="text-[var(--color-muted)]">{t('matter.client')}</dt>
+          <dd>
+            <button type="button" className="font-medium hover:underline" onClick={() => client && select({ kind: 'party', id: client.id })}>
+              {client?.name}
+            </button>
+          </dd>
+          {m.court && (
+            <>
+              <dt className="text-[var(--color-muted)]">{t('matter.court')}</dt>
+              <dd>{m.court}{m.courtFileNumber && <span className="text-[var(--color-muted)]"> · {m.courtFileNumber}</span>}</dd>
+            </>
+          )}
+          <dt className="text-[var(--color-muted)]">Mandat</dt>
+          <dd>{t(`fee.${m.feeArrangement}`)} · {m.jurisdiction}</dd>
+        </dl>
+      </Header>
+
+      <Section title={t('matter.pipeline')}>
+        <div className="flex items-center gap-1">
+          <IconButton title={t('matter.prev')} onClick={() => stageIndex > 0 && void setStage(m.id, PIPELINE_STAGES[stageIndex - 1])}><Icon.left /></IconButton>
+          <ol className="flex flex-1 items-center">
+            {PIPELINE_STAGES.map((s, i) => (
+              <li key={s} className="flex flex-1 items-center" title={t(`stage.${s}`)}>
+                <button
+                  type="button"
+                  onClick={() => void setStage(m.id, s)}
+                  className="h-3 w-3 shrink-0 rounded-full border-2 transition hover:scale-125"
+                  style={{ background: i <= stageIndex ? STAGE_COLORS[i] : 'white', borderColor: STAGE_COLORS[i], transform: i === stageIndex ? 'scale(1.35)' : undefined }}
+                />
+                {i < PIPELINE_STAGES.length - 1 && <span className="h-0.5 flex-1" style={{ background: i < stageIndex ? STAGE_COLORS[i] : '#e2e8f0' }} />}
+              </li>
+            ))}
+          </ol>
+          <IconButton title={t('matter.next')} onClick={() => stageIndex < PIPELINE_STAGES.length - 1 && void setStage(m.id, PIPELINE_STAGES[stageIndex + 1])}><Icon.right /></IconButton>
+        </div>
+        <div className="mt-1 text-center text-xs font-semibold" style={{ color: STAGE_COLORS[stageIndex] }}>
+          {stageIndex + 1}/{PIPELINE_STAGES.length} · {t(`stage.${m.stage}`)}
+        </div>
+      </Section>
+
+      <Section title={t('matter.deadlines')}>
+        {alerts.length === 0 ? (
+          <p className="text-xs text-[var(--color-muted)]">{t('matter.noDeadlines')}</p>
+        ) : (
+          <div className="space-y-2">{alerts.map((a) => <AlertCard key={a.deadline.id} alert={a} derived={derived} compact />)}</div>
+        )}
+      </Section>
+
+      <Section title={t('matter.timer')} aside={<span className="tabular text-[11px] text-[var(--color-muted)]">{t('matter.logged', { hours: hours(fin.hours) })}</span>}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => (running ? void stopTimer() : startTimer(m.id))}
+            className={`flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white shadow active:scale-95 ${running ? 'bg-[var(--color-critique)]' : 'bg-[var(--color-brand)]'}`}
+          >
+            {running ? <Icon.stop /> : <Icon.play />}
+            {running ? `${t('matter.stop')} · ${elapsed}` : t('matter.start')}
+          </button>
+          <div className="flex gap-1" aria-label={t('matter.quickAdd')}>
+            {[6, 15, 30, 60].map((min) => (
+              <button
+                key={min}
+                type="button"
+                onClick={() => void logMinutes(m.id, min, t('matter.quickAdd'))}
+                className="tabular h-9 rounded-lg border border-[var(--color-line)] bg-white px-2 text-xs font-semibold hover:border-[var(--color-brand)]"
+              >
+                +{hours(min / 60)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      <Section title={t('matter.finances')}>
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label={t('matter.workValue')} value={money(fin.workValueCents, true)} />
+          <Stat label={t('matter.wip')} value={money(fin.wipCents, true)} />
+          <Stat label={t('matter.billed')} value={money(fin.billedCents, true)} />
+          <Stat label={t('matter.collected')} value={money(fin.collectedCents, true)} />
+          <Stat label={t('matter.margin')} value={percent(fin.marginRate)} tone={marginTone} />
+          <Stat label={t('matter.hours')} value={hours(fin.hours)} />
+        </div>
+        <div className="mt-3">
+          <div className="mb-1 flex justify-between text-[11px]">
+            <span className="text-[var(--color-muted)]">{t('matter.budget')}</span>
+            <span className="tabular font-semibold">{percent(fin.budgetUsed)} · {money(m.budgetCents, true)}</span>
+          </div>
+          <Bar value={fin.budgetUsed} color={fin.budgetUsed > 0.9 ? ALERT_COLORS.critique : fin.budgetUsed > 0.7 ? ALERT_COLORS.attention : ALERT_COLORS.ok} />
+        </div>
+      </Section>
+
+      <Section title={t('matter.team')}>
+        <div className="flex flex-wrap gap-1.5">
+          {team.map((p) => {
+            const load = derived.loads.get(p.id)!;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => select({ kind: 'staff', id: p.id })}
+                className="flex items-center gap-1.5 rounded-full border bg-white py-0.5 pl-0.5 pr-2.5 text-xs hover:shadow"
+                style={{ borderColor: LOAD_COLORS[load.level] }}
+              >
+                <span className="grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: ROLE_COLORS[p.role] }}>{p.initials}</span>
+                {p.name.replace(/^Me /, '')}
+              </button>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section title={`${t('matter.documents')} (${docs.length})`}>
+        <ul className="space-y-1">
+          {docs.map((d) => (
+            <li key={d.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-xs hover:bg-white">
+              <span className="text-[var(--color-muted)]"><Icon.file /></span>
+              {d.exhibit && <span className="rounded bg-slate-800 px-1.5 text-[10px] font-bold text-white">{d.exhibit}</span>}
+              <span className="flex-1 truncate">{d.title}</span>
+              <span className="tabular text-[10px] text-[var(--color-muted)]">{d.addedAt}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </>
+  );
+}
+
+function useElapsed(since: number | null): string {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (since === null) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [since]);
+  if (since === null) return '';
+  const s = Math.max(0, Math.floor((now - since) / 1000));
+  return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/* ─────────────────────────── Pôle ─────────────────────────── */
+
+function MatterRow({ matter, derived }: { matter: Matter; derived: Derived }) {
+  const { t } = useTranslation();
+  const select = useFirm((s) => s.select);
+  const level = derived.matterLevel(matter.id);
+  return (
+    <li>
+      <button type="button" onClick={() => select({ kind: 'matter', id: matter.id })} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-xs hover:bg-white">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: ALERT_COLORS[level] }} />
+        <span className="flex-1 truncate"><b>{matter.number}</b> {matter.title}</span>
+        <span className="text-[10px] text-[var(--color-muted)]">{t(`stage.${matter.stage}`)}</span>
+      </button>
+    </li>
+  );
+}
+
+function AreaDetail({ area, derived }: { area: PracticeArea; derived: Derived }) {
+  const { t } = useTranslation();
+  const select = useFirm((s) => s.select);
+  const { snapshot, today, alerts } = derived;
+  const stats = areaStats(area, snapshot, today, alerts);
+  const matters = snapshot.matters.filter((m) => m.practiceAreaId === area.id && m.status !== 'ferme');
+  const people = snapshot.staff.filter((p) => p.practiceAreaId === area.id);
+  return (
+    <>
+      <Header eyebrow={area.code} title={area.name} color={area.color} />
+      <Section title="Vue d’ensemble">
+        <div className="grid grid-cols-4 gap-2">
+          <Stat label={t('area.matters')} value={stats.activeMatters} />
+          <Stat label={t('area.hoursMonth')} value={hours(stats.hoursMonth)} />
+          <Stat label={t('area.margin')} value={percent(stats.marginRate)} />
+          <Stat label={t('area.alerts')} value={stats.alertCount} tone={ALERT_COLORS[stats.worst]} />
+        </div>
+      </Section>
+      <Section title={t('area.staff')}>
+        <ul className="space-y-2">
+          {people.map((p) => {
+            const load = derived.loads.get(p.id)!;
+            return (
+              <li key={p.id}>
+                <button type="button" onClick={() => select({ kind: 'staff', id: p.id })} className="w-full text-left">
+                  <div className="flex justify-between text-xs"><span className="font-medium">{p.name}</span><span className="tabular text-[var(--color-muted)]">{percent(load.utilization)}</span></div>
+                  <Bar value={load.utilization} max={1.3} color={LOAD_COLORS[load.level]} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+      <Section title={t('area.matters')}>
+        <ul>{matters.map((m) => <MatterRow key={m.id} matter={m} derived={derived} />)}</ul>
+      </Section>
+    </>
+  );
+}
+
+/* ─────────────────────────── Collaborateur ─────────────────────────── */
+
+function StaffDetail({ staff: p, derived }: { staff: Staff; derived: Derived }) {
+  const { t } = useTranslation();
+  const load = derived.loads.get(p.id)!;
+  const area = derived.areaById.get(p.practiceAreaId)!;
+  const matters = derived.snapshot.matters.filter((m) => m.status !== 'ferme' && (m.responsibleId === p.id || m.teamIds.includes(p.id)));
+  const mine = derived.alerts.filter((a) => a.deadline.assignedTo === p.id);
+  return (
+    <>
+      <Header eyebrow={`${t(`role.${p.role}`)} · ${area.name}`} title={p.name} color={ROLE_COLORS[p.role]}>
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white" style={{ background: LOAD_COLORS[load.level] }}>
+          {t(`load.${load.level}`)}
+        </span>
+      </Header>
+      <Section title="Charge">
+        <div className="grid grid-cols-3 gap-2">
+          <Stat label={t('staff.rate')} value={`${money(p.hourlyRateCents, true)}/h`} />
+          <Stat label={t('staff.utilization')} value={`${hours(load.hoursLast7)} h`} />
+          <Stat label={t('staff.matters')} value={load.activeMatters} />
+        </div>
+        <div className="mt-3 space-y-2 text-[11px]">
+          <div>
+            <div className="mb-1 flex justify-between"><span className="text-[var(--color-muted)]">{t('staff.utilization')}</span><span className="tabular font-semibold">{percent(load.utilization)}</span></div>
+            <Bar value={load.utilization} max={1.3} color={LOAD_COLORS[load.level]} />
+          </div>
+          <div>
+            <div className="mb-1 flex justify-between"><span className="text-[var(--color-muted)]">{t('staff.stress')}</span><span className="tabular font-semibold">{load.stress}/100</span></div>
+            <Bar value={load.stress} max={100} color={LOAD_COLORS[load.level]} />
+          </div>
+        </div>
+      </Section>
+      <Section title={t('staff.upcoming')}>
+        {mine.length === 0 ? <p className="text-xs text-[var(--color-muted)]">—</p> : (
+          <ul className="space-y-1.5">
+            {mine.map((a) => (
+              <li key={a.deadline.id} className="flex items-center gap-2 text-xs">
+                <LevelBadge level={a.level} />
+                <span className="flex-1 truncate">{a.deadline.title}</span>
+                <span className="tabular text-[10px] text-[var(--color-muted)]">{a.deadline.dueDate}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+      <Section title={t('staff.matters')}>
+        <ul>{matters.map((m) => <MatterRow key={m.id} matter={m} derived={derived} />)}</ul>
+      </Section>
+    </>
+  );
+}
+
+/* ─────────────────────────── Nœud externe ─────────────────────────── */
+
+function PartyDetail({ party, derived }: { party: Party; derived: Derived }) {
+  const { t } = useTranslation();
+  const links = derived.snapshot.matterParties.filter((mp) => mp.partyId === party.id);
+  const roles = [...new Set(links.map((l) => l.role))];
+  return (
+    <>
+      <Header eyebrow={roles.map((r) => t(`partyRole.${r}`)).join(' · ')} title={party.name} color={party.kind === 'tribunal' ? '#475569' : roles.includes('client') ? '#3b82f6' : '#dc4c64'}>
+        {party.aliases.length > 0 && <p className="mt-1 text-[11px] text-[var(--color-muted)]">aka {party.aliases.join(', ')}</p>}
+      </Header>
+      <Section title={t('party.linked')}>
+        <ul>
+          {links.map((l) => {
+            const m = derived.snapshot.matters.find((x) => x.id === l.matterId);
+            return m ? <MatterRow key={`${l.matterId}-${l.role}`} matter={m} derived={derived} /> : null;
+          })}
+        </ul>
+      </Section>
+    </>
+  );
+}

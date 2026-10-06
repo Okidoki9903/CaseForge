@@ -1,0 +1,63 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #0f1b2d;
+  --color-muted: #5b6b82;
+  --color-line: #dbe3ee;
+  --color-panel: rgb(255 255 255 / 0.86);
+  --color-brand: #3b5bdb;
+  --color-depasse: #b4161b;
+  --color-critique: #e5484d;
+  --color-urgent: #f76b15;
+  --color-attention: #f5b100;
+  --color-ok: #2f9e6e;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #e9eef5;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass {
+  background: var(--color-panel);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid rgb(255 255 255 / 0.7);
+  box-shadow: 0 10px 30px -12px rgb(15 27 45 / 0.28), 0 1px 0 rgb(255 255 255 / 0.6) inset;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+@keyframes cf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.animate-alert { animation: cf-pulse 1.4s ease-in-out infinite; }
+
+@keyframes cf-slide-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.animate-panel { animation: cf-slide-in 0.22s cubic-bezier(.2,.8,.2,1); }
+
+.scrollbar-thin::-webkit-scrollbar { width: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #c5d0de; border-radius: 3px; }
+
+/* Étiquettes 3D (drei <Html>) */
+.map-label {
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--color-ink);
+  box-shadow: 0 2px 8px rgb(15 27 45 / 0.18);
+}
