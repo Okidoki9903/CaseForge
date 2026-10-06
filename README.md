@@ -14,8 +14,8 @@
 |---|---|---|
 | Délai de prescription ou de procédure manqué (1re cause de réclamations en responsabilité professionnelle) | Échéances calculées en **jours juridiques** propres au ressort, avec une colonne lumineuse sur la carte, une bannière impossible à fermer, un **accusé de réception nominatif journalisé** et une notification système | Évite des sinistres à 6 chiffres et protège la prime d'assurance |
 | « Où en est ce dossier ? » | Chaque pôle a son quai de pipeline à 8 étapes (Ouverture → Clôture), et les dossiers glissent d'une étape à l'autre | Vue instantanée, sans réunion |
-| Temps non saisi (WIP perdu) | Chronomètre en un clic et saisie rapide par tranches de 0,1 h | Récupère des heures facturables |
-| Conflits d'intérêts | Recherche floue (Ctrl+K) sur clients, parties adverses et noms antérieurs, qui ignore les accents et les formes juridiques | Vérification en quelques secondes au lieu de plusieurs minutes |
+| Temps non saisi (WIP perdu) | Chronomètre en un clic, saisie manuelle en 5 secondes, arrondi automatique à 0,1 h, taux figé, statuts facturé ou radié, export CSV vers le logiciel de facturation | Récupère des heures facturables et donne une vue claire du WIP |
+| Conflits d'intérêts | Recherche floue (Ctrl+K) sur clients, parties adverses et noms antérieurs, **enregistrée automatiquement** avec statut et auteur ; dossiers concernés signalés sur la carte | Vérification en quelques secondes et preuve de diligence pour le Barreau |
 | Rentabilité opaque | Marge, budget consommé, WIP, facturé et encaissé par dossier et par pôle, en temps réel | Décisions de tarification éclairées |
 | Épuisement professionnel | Anneau de charge sous chaque collaborateur, indice de pression (utilisation et échéances critiques) | Redistribution avant la crise |
 
@@ -27,7 +27,7 @@ npm run rebuild:native   # recompile better-sqlite3 pour l'ABI d'Electron
 npm run dev              # application de bureau (Electron + SQLite)
 
 npm run dev:web          # interface seule dans le navigateur (mode démo, IndexedDB)
-npm test                 # tests unitaires (calendriers, délais, alertes, conflits, SQLite)
+npm test                 # 53 tests : calendriers, délais, alertes, temps, conflits, démo, SQLite
 npm run typecheck
 npm run package          # installateur Windows / macOS / Linux (electron-builder)
 ```
@@ -68,7 +68,8 @@ npm run package          # installateur Windows / macOS / Linux (electron-builde
   - aucune permission accordée ;
   - navigation et `window.open` interdits ;
   - polices empaquetées localement (`@fontsource`), aucune ressource CDN (pas d'`Environment` drei ni de `Text`/troika, qui téléchargent des fichiers).
-- **Isolation.** `contextIsolation`, `sandbox` et `nodeIntegration: false`. Le renderer n'a accès qu'aux 6 opérations exposées par le preload, et chaque entrée est validée côté main.
+- **Isolation.** `contextIsolation`, `sandbox` et `nodeIntegration: false`. Le renderer n'a accès qu'aux 10 opérations exposées par le preload (`src/shared/api.ts`), et chaque entrée est validée côté main. Les règles métier (arrondi, transitions de statut, initiales) sont partagées entre SQLite et le mode démo pour ne jamais diverger.
+- **Export de fichiers.** Le seul fichier que l'application écrit hors de sa base est celui que l'utilisateur choisit dans la boîte de dialogue native (Electron), ou un téléchargement local dans le navigateur.
 - **Domaine pur et testable.** Toute la logique métier (`src/shared/domain`) est en TypeScript sans dépendance. Elle tourne à l'identique dans Electron, dans le navigateur et sous Vitest.
 - **Robustesse.**
   - Journal WAL, `foreign_keys` et contraintes `CHECK` sur toutes les énumérations.
@@ -79,7 +80,7 @@ npm run package          # installateur Windows / macOS / Linux (electron-builde
 
 ## 2. Schéma de la base locale
 
-Défini dans `src/main/db/migrations.ts`.
+Défini dans `src/main/db/migrations.ts` (v1 : schéma initial ; v2 : statuts des vérifications de conflits et index d'audit).
 
 | Table | Rôle | Colonnes clés |
 |---|---|---|
@@ -94,8 +95,8 @@ Défini dans `src/main/db/migrations.ts`.
 | `time_entries` | Saisie de temps | `minutes`, `rate_cents` (figé à la saisie), `billable`, `status` (wip/facture/radie) |
 | `invoices` | Factures | `standard_value_cents`, `amount_cents`, `paid_cents` (réalisation et recouvrement) |
 | `documents` | Pièces (références vers des **fichiers locaux** seulement) | `category`, `exhibit` (P-1, D-3…), `file_path` |
-| `conflict_checks` | Trace des vérifications de conflits (preuve de diligence ; table prête, journalisation à brancher) | `query`, `performed_by`, `results_json` |
-| `audit_log` | Journal (accusés de réception, changements d'étape) | `actor`, `action`, `entity`, `entity_id`, `details_json` |
+| `conflict_checks` | Trace des vérifications de conflits (preuve de diligence), écrite automatiquement | `query`, `performed_by`, `performed_at`, `results_json` (correspondances figées), `status` (en_cours/clair/potentiel/confirme), `matter_id`, `updated_at/by` — **v2** |
+| `audit_log` | Journal : accusés de réception, échéances faites, changements d'étape, statuts de temps, vérifications de conflits | `actor` (initiales), `action`, `entity`, `entity_id`, `details_json` (de → vers) |
 
 ## 3. Structure du projet
 
@@ -111,7 +112,9 @@ src/
 │       ├── deadlineRules.ts   # catalogue de délais + moteur de calcul expliqué
 │       ├── alerts.ts          # niveaux d'alerte, accusés de réception
 │       ├── metrics.ts         # KPI, charge, rentabilité
-│       └── conflicts.ts       # recherche floue de conflits
+│       ├── time.ts            # arrondi 0,1 h, durées, statuts, WIP, export CSV
+│       ├── validation.ts      # initiales nominatives
+│       └── conflicts.ts       # recherche floue, statuts, dossiers signalés
 ├── main/                      # processus principal Electron
 │   ├── index.ts               # fenêtre, cycle de vie, instance unique
 │   ├── security.ts            # blocage réseau, CSP, permissions
@@ -127,7 +130,7 @@ src/
         ├── store/             # Zustand + valeurs dérivées mémoïsées
         ├── i18n/              # fr.ts (défaut), en.ts — typés
         ├── scene/             # carte 3D : layout, bâtiments, dossiers, collaborateurs, tribunaux, liens, caméra
-        └── ui/                # barre KPI, bannière, centre d'alertes, panneau de détail, pipeline, conflits
+        └── ui/                # barre KPI, bannière, centre d'alertes, panneau de détail, temps (panneau + tiroir WIP), pipeline, conflits
 ```
 
 ## 4. Le premier écran
@@ -141,9 +144,9 @@ src/
 - **Barre d'indicateurs** : dossiers actifs, échéances critiques, heures facturables du mois, travaux en cours (WIP), taux de réalisation et de recouvrement.
 - **Barre de pipeline** : nombre de dossiers par étape, avec filtrage sur la carte.
 
-| Centre d'alertes | Dossier | Conflits (Ctrl+K) |
-|---|---|---|
-| ![](docs/captures/centre-alertes.png) | ![](docs/captures/dossier.png) | ![](docs/captures/conflits.png) |
+| Centre d'alertes | Dossier (mode focus) | Conflits (Ctrl+K) | Temps et WIP |
+|---|---|---|---|
+| ![](docs/captures/centre-alertes.png) | ![](docs/captures/dossier.png) | ![](docs/captures/conflits.png) | ![](docs/captures/temps-wip.png) |
 
 ## 5. Système d'alertes d'échéances
 
@@ -163,9 +166,50 @@ src/
    - gyrophare du bâtiment ;
    - point rouge sur l'étape du pipeline ;
    - KPI pulsant.
-4. **Bannière persistante**, qui ne se ferme pas tant qu'une échéance critique ou dépassée n'a pas reçu d'**accusé de réception nominatif** (initiales). L'accusé est journalisé dans `audit_log`.
+4. **Bannière persistante**, sans bouton de fermeture : elle reste tant qu'une échéance critique ou dépassée n'a pas reçu d'**accusé de réception nominatif** (date et initiales). « Marquer fait » exige lui aussi des initiales : aucune alerte critique ne peut disparaître sans auteur identifié. Tout est journalisé dans `audit_log`. Le KPI « Échéances critiques » et la bannière ouvrent le centre d'alertes filtré sur les critiques.
 5. **Notification du système d’exploitation**, même si la fenêtre est réduite : vérification toutes les 15 minutes, une seule notification par échéance et par jour.
 6. **Moteur de délais expliqué** (`deadlineRules.ts`). Chaque calcul retourne son raisonnement : jour du point de départ exclu, report pour cause de jour non juridique, fondement légal. Par prudence, CaseForge retient la **date brute**, avant report, comme échéance d'alerte.
+
+## 6. Phase 2 — valeur commerciale
+
+### Time-tracking
+- **Chronomètre** en un clic dans le panneau du dossier, avec une description facultative.
+- **Saisie manuelle** : description et durée (`0,5`, `1:30`, `1h30`, `45m`), avec un aperçu « → 0,4 h · 210,00 $ » avant l'ajout.
+- **Arrondi automatique au dixième d'heure supérieur** (tranches de 6 minutes, minimum 0,1 h). Il est appliqué par la couche de données, quelle que soit l'interface qui saisit.
+- **Taux figé à la saisie.** Le taux du collaborateur est copié dans l'entrée ; une hausse ultérieure ne modifie pas les entrées existantes.
+- **Statuts** : non facturé (WIP) → facturé ou radié, avec retour possible au WIP pour corriger. Chaque changement est journalisé.
+- **KPI « Travaux en cours »** en dollars et en heures, avec le nombre de dossiers concernés. Un clic ouvre le **tiroir Temps et WIP** :
+  - filtres par statut et « Mes entrées » ;
+  - regroupement par dossier ;
+  - « Tout facturer » par dossier.
+- **Export CSV** de la sélection ou d'un dossier, pour l'importation dans un logiciel de facturation :
+  - UTF-8 avec BOM (lisible par Excel), séparateur virgule, décimales avec point ;
+  - colonnes : date, dossier, client, collaborateur, minutes, heures, taux, montant, statut, description, id ;
+  - neutralisation des formules (`=`, `+`, `-`, `@`) contre l'injection CSV.
+
+### Conflits
+- Chaque recherche Ctrl+K est **enregistrée automatiquement** dans `conflict_checks` après une pause de frappe, une seule fois par requête distincte.
+- La recherche est **refaite par la couche de données** au moment de l'enregistrement : la trace fait foi, indépendamment de l'interface.
+- **Statuts** : En cours, Clair, Conflit potentiel, Conflit confirmé. Le statut initial est automatique (« Clair » sans correspondance, « Conflit potentiel » sinon), puis modifiable.
+- **Dossier visé** facultatif (ouverture d'un nouveau mandat).
+- **Historique** dans la fenêtre Ctrl+K et dans le panneau de chaque dossier concerné.
+- **Signalement visuel** : un dossier visé par une vérification potentielle ou confirmée, ou dans lequel apparaît une partie correspondante, porte un anneau violet et une pastille « ⚖ Conflit » sur la carte. Son panneau affiche aussi un encadré d'alerte.
+
+### Pipeline actionnable
+- **Changer d'étape** de trois façons : boutons ‹ ›, clic sur l'étape dans le stepper, ou **glisser-déposer** de la poignée du dossier vers une étape de la barre de pipeline.
+- **Journalisation** de chaque changement dans `audit_log` : qui (initiales de la session), quand, et de quelle étape vers quelle étape. Le panneau du dossier affiche cet **historique**.
+- **Filtre rapide** par clic sur une étape, avec une pastille « Filtre : étape ✕ ».
+
+### Démo
+- **14 dossiers** : 9 au Québec, 3 en Ontario et 2 devant les Cours fédérales.
+- **6 échéances critiques ou dépassées** dans les deux prochains jours juridiques.
+- **4 vérifications de conflits**, une par statut.
+- **Charges contrastées** : surcharge, élevée, saine et faible.
+
+### UX
+- **Mode focus** : quand un dossier est sélectionné, l'éclairage et le fond s'assombrissent en douceur, les autres dossiers passent au second plan et un projecteur éclaire le dossier choisi.
+- **Centre d'alertes filtré** : le KPI critique et la bannière l'ouvrent sur les seules échéances critiques.
+- **Erreurs** : elles s'effacent d'elles-mêmes après 5 secondes.
 
 ## Droit modélisé et points à valider
 
