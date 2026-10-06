@@ -1,5 +1,6 @@
 /** Français (Canada) — langue par défaut. */
 export const fr = {
+  webDemo: { banner: 'Version démo navigateur — les données restent uniquement sur votre ordinateur', details: 'Données fictives, enregistrées dans ce navigateur (IndexedDB). Aucune information n’est envoyée à un serveur.' },
   app: { tagline: 'Centre de commandement du cabinet', local: '100 % local', localHint: 'Aucune donnée ne quitte ce poste. Stockage : {{storage}}.', loading: 'Chargement des données locales…', session: 'Session' },
   kpi: {
     activeMatters: 'Dossiers actifs',

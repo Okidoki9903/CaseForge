@@ -2,6 +2,7 @@ import type { Messages } from './fr';
 
 /** English (Canada). */
 export const en: Messages = {
+  webDemo: { banner: 'Browser demo — your data stays on your computer only', details: 'Fictional data, stored in this browser (IndexedDB). Nothing is sent to any server.' },
   app: { tagline: 'Firm command centre', local: '100% local', localHint: 'No data ever leaves this computer. Storage: {{storage}}.', loading: 'Loading local data…', session: 'Session' },
   kpi: {
     activeMatters: 'Active matters',

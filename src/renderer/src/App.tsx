@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { api } from './api';
 import { CampusScene } from './scene/CampusScene';
 import { useDerived } from './store/useDerived';
 import { useFirm } from './store/useFirm';
@@ -44,7 +45,9 @@ export function App() {
   }
 
   return (
-    <main className="relative h-full w-full select-none">
+    <div className="flex h-full w-full flex-col">
+      {api.storage === 'indexeddb' && <WebDemoStrip />}
+    <main className="relative min-h-0 w-full flex-1 select-none">
       <div className="absolute inset-0">
         <CampusScene derived={derived} />
       </div>
@@ -69,5 +72,25 @@ export function App() {
         )}
       </div>
     </main>
+    </div>
+  );
+}
+
+/**
+ * Bandeau discret de la version navigateur (démo publique) : rappelle que tout reste local.
+ * Absent de l'application de bureau (stockage SQLite).
+ */
+function WebDemoStrip() {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="note"
+      title={t('webDemo.details')}
+      className="flex h-6 shrink-0 items-center justify-center gap-1.5 bg-[var(--color-ink)] px-3 text-[11px] font-medium text-white/90"
+    >
+      <span aria-hidden>🔒</span>
+      <span className="truncate">{t('webDemo.banner')}</span>
+      <span className="hidden truncate text-white/50 md:inline">· {t('webDemo.details')}</span>
+    </div>
   );
 }
