@@ -2,9 +2,11 @@
 
 **Le centre de commandement du cabinet d'avocats canadien.** CaseForge présente l'ensemble des dossiers, des échéances et de l'équipe sous la forme d'un campus isométrique 3D, comme dans un jeu de stratégie. L'application est **100 % locale** : aucune donnée ne quitte le poste.
 
-![Campus](docs/captures/campus.png)
+![Campus](docs/captures/demo-1-alertes.png)
 
-> **Statut :** v0.1, premier écran fonctionnel. Les calendriers du Québec, de l'Ontario et des Cours fédérales ont été validés ; la C.-B., l'Alberta et une partie du catalogue de délais restent **à valider** (voir [Droit modélisé](#droit-modélisé-et-points-à-valider)).
+🎬 Scénario de démo de 60 à 90 secondes : [docs/DEMO.md](docs/DEMO.md)
+
+> **Statut :** v0.3, prêt pour une première démonstration à un avocat ; application Electron testée de bout en bout. Les calendriers du Québec, de l'Ontario et des Cours fédérales ont été validés ; la C.-B., l'Alberta et une partie du catalogue de délais restent **à valider** (voir [Droit modélisé](#droit-modélisé-et-points-à-valider)).
 
 ---
 
@@ -27,14 +29,22 @@ npm run rebuild:native   # recompile better-sqlite3 pour l'ABI d'Electron
 npm run dev              # application de bureau (Electron + SQLite)
 
 npm run dev:web          # interface seule dans le navigateur (mode démo, IndexedDB)
-npm test                 # 53 tests : calendriers, délais, alertes, temps, conflits, démo, SQLite
+npm test                 # 72 tests unitaires (domaine + SQLite)
+npm run test:e2e         # test de bout en bout de l'application Electron réelle (13 vérifications)
 npm run typecheck
+npm run demo:capture     # rejoue le scénario de démo : captures (+ vidéo)
 npm run package          # installateur Windows / macOS / Linux (electron-builder)
 ```
 
-> `npm test` utilise better-sqlite3 compilé pour Node. Après `rebuild:native`, relancez `npm rebuild better-sqlite3` pour pouvoir exécuter les tests du dépôt SQLite sous Node.
-
-À la première ouverture, un cabinet de démonstration fictif est créé. Ses échéances sont générées relativement à la date du jour, donc toujours pertinentes. Le bouton ↺ réinitialise la démo.
+- **Module natif.** better-sqlite3 est compilé soit pour Node (`npm test`), soit pour Electron (`npm run dev`).
+  - Après `rebuild:native`, relancez `npm run rebuild:node` avant `npm test` ; `npm run test:e2e` fait les deux bascules automatiquement.
+  - `rebuild:native` force la recompilation (`electron-rebuild -f`) : sans cela, un marqueur laissé par `npm rebuild` fait croire à tort que le module est déjà prêt pour Electron.
+  - Si l'application démarre avec le mauvais module, elle affiche un message clair avec la commande à lancer, au lieu d'une fenêtre blanche.
+- **Dossier de données.** Par défaut, les données vont dans le dossier `userData` du système. La variable `CASEFORGE_DATA_DIR=/chemin` en choisit un autre : poste partagé, installation portable ou démonstration sur des données jetables.
+- **Premier lancement.** Un écran d'accueil en 4 étapes s'affiche, puis on choisit :
+  - **« Commencer avec la démo »** : un cabinet fictif de 14 dossiers, dont les échéances sont recalculées à partir de la date du jour ;
+  - **« Créer un cabinet vide »**.
+  - On peut changer d'avis plus tard dans Paramètres → Données, avec confirmation, car les données actuelles sont remplacées.
 
 ---
 
@@ -68,7 +78,7 @@ npm run package          # installateur Windows / macOS / Linux (electron-builde
   - aucune permission accordée ;
   - navigation et `window.open` interdits ;
   - polices empaquetées localement (`@fontsource`), aucune ressource CDN (pas d'`Environment` drei ni de `Text`/troika, qui téléchargent des fichiers).
-- **Isolation.** `contextIsolation`, `sandbox` et `nodeIntegration: false`. Le renderer n'a accès qu'aux 10 opérations exposées par le preload (`src/shared/api.ts`), et chaque entrée est validée côté main. Les règles métier (arrondi, transitions de statut, initiales) sont partagées entre SQLite et le mode démo pour ne jamais diverger.
+- **Isolation.** `contextIsolation`, `sandbox` et `nodeIntegration: false`. Le renderer n'a accès qu'aux opérations exposées par le preload (`src/shared/api.ts`), et chaque entrée est validée côté main. Les règles métier (arrondi, transitions de statut, initiales) sont partagées entre SQLite et le mode démo pour ne jamais diverger.
 - **Export de fichiers.** Le seul fichier que l'application écrit hors de sa base est celui que l'utilisateur choisit dans la boîte de dialogue native (Electron), ou un téléchargement local dans le navigateur.
 - **Domaine pur et testable.** Toute la logique métier (`src/shared/domain`) est en TypeScript sans dépendance. Elle tourne à l'identique dans Electron, dans le navigateur et sous Vitest.
 - **Robustesse.**
@@ -114,12 +124,16 @@ src/
 │       ├── metrics.ts         # KPI, charge, rentabilité
 │       ├── time.ts            # arrondi 0,1 h, durées, statuts, WIP, export CSV
 │       ├── validation.ts      # initiales nominatives
-│       └── conflicts.ts       # recherche floue, statuts, dossiers signalés
+│       ├── firm.ts            # paramètres du cabinet, collaborateurs, cabinet vide
+│       ├── matters.ts         # ouverture de dossier, ajout d'échéance
+│       ├── reports.ts         # rapports d'heures et d'échéances, HTML imprimable (PDF)
+│       └── conflicts.ts       # recherche floue, statuts selon le rôle, dossiers signalés
 ├── main/                      # processus principal Electron
 │   ├── index.ts               # fenêtre, cycle de vie, instance unique
 │   ├── security.ts            # blocage réseau, CSP, permissions
 │   ├── ipc.ts                 # pont validé
 │   ├── notifier.ts            # notifications OS des échéances critiques
+│   ├── startupErrors.ts       # messages clairs au démarrage (module natif, base verrouillée…)
 │   └── db/                    # connexion, migrations, dépôt (+ tests)
 ├── preload/index.ts           # contextBridge → window.caseforge
 └── renderer/
@@ -130,7 +144,13 @@ src/
         ├── store/             # Zustand + valeurs dérivées mémoïsées
         ├── i18n/              # fr.ts (défaut), en.ts — typés
         ├── scene/             # carte 3D : layout, bâtiments, dossiers, collaborateurs, tribunaux, liens, caméra
-        └── ui/                # barre KPI, bannière, centre d'alertes, panneau de détail, temps (panneau + tiroir WIP), pipeline, conflits
+        └── ui/                # accueil, paramètres, KPI, bannière, alertes, dossier, temps, rapports, pipeline, conflits
+e2e/
+├── electron.e2e.cjs           # test de bout en bout de l'application Electron réelle
+└── demo-capture.cjs           # scénario de démo automatisé (captures + vidéo)
+docs/
+├── DEMO.md                    # script de démo de 60 à 90 s + texte LinkedIn
+└── captures/                  # captures générées par demo:capture
 ```
 
 ## 4. Le premier écran
@@ -144,9 +164,11 @@ src/
 - **Barre d'indicateurs** : dossiers actifs, échéances critiques, heures facturables du mois, travaux en cours (WIP), taux de réalisation et de recouvrement.
 - **Barre de pipeline** : nombre de dossiers par étape, avec filtrage sur la carte.
 
-| Centre d'alertes | Dossier (mode focus) | Conflits (Ctrl+K) | Temps et WIP |
-|---|---|---|---|
-| ![](docs/captures/centre-alertes.png) | ![](docs/captures/dossier.png) | ![](docs/captures/conflits.png) | ![](docs/captures/temps-wip.png) |
+| Accusé de réception | Temps (mode focus) | Conflits (Ctrl+K) |
+|---|---|---|
+| ![](docs/captures/demo-2-accuse.png) | ![](docs/captures/demo-3-temps.png) | ![](docs/captures/demo-4-conflit.png) |
+| **Pipeline et historique** | **Rapports** | **Paramètres** |
+| ![](docs/captures/demo-5-pipeline.png) | ![](docs/captures/demo-6-rapports.png) | ![](docs/captures/demo-7-parametres.png) |
 
 ## 5. Système d'alertes d'échéances
 
@@ -210,6 +232,50 @@ src/
 - **Mode focus** : quand un dossier est sélectionné, l'éclairage et le fond s'assombrissent en douceur, les autres dossiers passent au second plan et un projecteur éclaire le dossier choisi.
 - **Centre d'alertes filtré** : le KPI critique et la bannière l'ouvrent sur les seules échéances critiques.
 - **Erreurs** : elles s'effacent d'elles-mêmes après 5 secondes.
+
+## 7. Phase 3 — présentable et vendable
+
+### Accueil et paramètres
+- **Écran d'accueil** au premier lancement, en 4 étapes :
+  1. 100 % local ;
+  2. alertes et accusé de réception nominatif ;
+  3. saisie de temps ;
+  4. conflits (Ctrl+K).
+- **Choix de départ** : « Commencer avec la démo » ou « Créer un cabinet vide » (nom, ressorts, premier collaborateur). Sur un cabinet réel, l'accueil ne propose **aucune action destructrice**.
+- **Paramètres du cabinet**, persistés localement :
+  - nom ;
+  - ressorts principaux, avec l'état de validation de chaque calendrier ;
+  - taux par défaut ;
+  - collaborateurs (nom, **initiales uniques**, rôle, pôle, taux, objectif hebdomadaire). On les désactive sans les supprimer, et le dernier collaborateur actif est protégé ;
+  - un nouveau taux ne s'applique qu'aux saisies futures.
+- **Cabinet vide utilisable dès le premier jour** :
+  - « + Dossier » vérifie automatiquement les conflits, **selon le rôle** : un futur client déjà partie adverse, ou une future partie adverse déjà cliente, donnent un conflit potentiel ; un client récurrent est « clair » ;
+  - « + Échéance » s'ajoute par une règle du catalogue (calcul expliqué) ou par une date précise.
+
+### Exports et rapports
+- **Rapport d'heures par collaborateur**, pour la semaine ou le mois : heures facturables et non facturables, valeur, objectif proratisé, utilisation.
+- **Échéances critiques et dépassées**, avec les urgentes en option.
+- **CSV en deux formats** :
+  - logiciel de facturation (virgule, point décimal) ;
+  - **Excel français** (point-virgule, virgule décimale), ce qu'attend Excel au Québec.
+- **PDF généré localement** : document HTML autonome converti par Chromium dans une fenêtre cachée, sans JavaScript et soumise au blocage réseau.
+
+### Robustesse
+- **Application Electron testée de bout en bout** (`npm run test:e2e`) : 13 vérifications réussies.
+  - fenêtre, stockage SQLite, écran d'accueil ;
+  - **6 notifications système** ;
+  - bannière d'alerte ;
+  - **blocage réseau**, à la fois par la CSP du renderer et par le filtre du processus principal ;
+  - **export CSV et PDF** via la boîte de dialogue native ;
+  - **persistance après redémarrage** ;
+  - **sauvegarde quotidienne**.
+- **Module SQLite non recompilé** : message clair et sortie propre. Une base verrouillée, endommagée ou inaccessible est aussi expliquée, avec la marche à suivre.
+- **Scène 3D** :
+  - correctif d'une étiquette de bâtiment qui pouvait ne jamais s'afficher ;
+  - une seule étiquette par pôle en vue d'ensemble, donc plus aucun chevauchement ;
+  - mode focus épuré ;
+  - résolution adaptative.
+- **Barre du haut adaptative** de 1100 à plus de 1600 px.
 
 ## Droit modélisé et points à valider
 

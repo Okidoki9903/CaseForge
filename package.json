@@ -14,9 +14,11 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "rebuild:native": "electron-builder install-app-deps",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "package": "npm run build && electron-builder",
-    "test:e2e": "npm run build && npm run rebuild:native && (xvfb-run -a node e2e/electron.e2e.cjs || node e2e/electron.e2e.cjs); npm rebuild better-sqlite3"
+    "test:e2e": "npm run build && npm run rebuild:native && (xvfb-run -a node e2e/electron.e2e.cjs || node e2e/electron.e2e.cjs); status=$?; npm run rebuild:node; exit $status",
+    "demo:capture": "node e2e/demo-capture.cjs",
+    "rebuild:node": "npm rebuild better-sqlite3"
   },
   "build": {
     "appId": "ca.caseforge.desktop",
