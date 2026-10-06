@@ -4,6 +4,11 @@ import type { Messages } from './fr';
 export const en: Messages = {
   webDemo: { banner: 'Browser demo — your data stays on your computer only', details: 'Fictional data, stored in this browser (IndexedDB). Nothing is sent to any server.' },
   app: { tagline: 'Firm command centre', local: '100% local', localHint: 'No data ever leaves this computer. Storage: {{storage}}.', loading: 'Loading local data…', session: 'Session' },
+  scene: {
+    areaMeta: '{{matters}} matters · {{staff}} people',
+    alerts_one: '{{count}} alert',
+    alerts_other: '{{count}} alerts',
+  },
   hud: {
     wip: 'Unbilled WIP',
     wipWeek: '{{amount}} this week',

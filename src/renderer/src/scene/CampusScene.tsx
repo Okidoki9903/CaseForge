@@ -3,7 +3,9 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { MapControls, PerformanceMonitor } from '@react-three/drei';
+import { Environment, Lightformer, MapControls, PerformanceMonitor } from '@react-three/drei';
+import { Bloom, EffectComposer, N8AO, ToneMapping } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import { areaStats } from '@shared/domain/metrics';
 import { severityRank } from '@shared/domain/alerts';
 import type { Derived } from '../store/useDerived';
@@ -20,8 +22,31 @@ import { SCENE_COLORS } from './palette';
 import { SelectionLinks } from './SelectionLinks';
 import { StaffUnit } from './StaffUnit';
 
-/** Angle polaire isométrique « vrai » : arctan(√2) ≈ 54,7°. */
-const ISO_POLAR = Math.atan(Math.SQRT2);
+/** Angle polaire de la vue « maquette » : légèrement plus rasant que l'isométrique pur. */
+const VIEW_POLAR = 0.88;
+const TARGET: [number, number, number] = [-1, 0, 3];
+const DISTANCE = 100;
+const AZIMUTH = Math.atan2(48, 54);
+const CAMERA_POSITION: [number, number, number] = [
+  TARGET[0] + DISTANCE * Math.sin(VIEW_POLAR) * Math.sin(AZIMUTH),
+  DISTANCE * Math.cos(VIEW_POLAR),
+  TARGET[2] + DISTANCE * Math.sin(VIEW_POLAR) * Math.cos(AZIMUTH),
+];
+
+/**
+ * Éclairage d'ambiance « studio » entièrement généré localement (aucun fichier HDR téléchargé) :
+ * reflets doux sur les vitrages et lumière chaude de fin de journée.
+ */
+function LocalEnvironment() {
+  return (
+    <Environment resolution={256} frames={1}>
+      <Lightformer form="rect" intensity={2.2} color="#ffffff" position={[0, 12, 0]} rotation-x={Math.PI / 2} scale={[30, 30, 1]} />
+      <Lightformer form="rect" intensity={1.6} color="#ffe2bd" position={[-14, 4, 10]} rotation-y={Math.PI / 3} scale={[18, 5, 1]} />
+      <Lightformer form="rect" intensity={1.1} color="#c9d6ff" position={[14, 5, -10]} rotation-y={-Math.PI / 1.5} scale={[18, 6, 1]} />
+      <Lightformer form="ring" intensity={1.4} color="#fff3e0" position={[8, 9, 12]} scale={5} />
+    </Environment>
+  );
+}
 
 export function CampusScene({ derived }: { derived: Derived }) {
   const { snapshot, today, alerts, alertsByMatter, matterLevel, loads, areaById, conflicts } = derived;
@@ -31,6 +56,8 @@ export function CampusScene({ derived }: { derived: Derived }) {
   const labels = useRef<HTMLDivElement>(null!);
   // Résolution adaptative : baisse automatiquement sur les postes modestes.
   const [dpr, setDpr] = useState(1.5);
+  // Effets cinématiques (occlusion ambiante, halo) : coupés si la machine peine.
+  const [effects, setEffects] = useState(true);
 
   const stats = useMemo(
     () => new Map(snapshot.practiceAreas.map((a) => [a.id, areaStats(a, snapshot, today, alerts)])),
@@ -78,6 +105,12 @@ export function CampusScene({ derived }: { derived: Derived }) {
     return map;
   }, [derived.activeStaff, loads]);
 
+  const staffCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of derived.activeStaff) map.set(p.practiceAreaId, (map.get(p.practiceAreaId) ?? 0) + 1);
+    return map;
+  }, [derived.activeStaff]);
+
   const partyRoles = useMemo(() => {
     const roles = new Map<string, (typeof snapshot.matterParties)[number]['role']>();
     for (const mp of snapshot.matterParties) if (!roles.has(mp.partyId)) roles.set(mp.partyId, mp.role);
@@ -85,24 +118,32 @@ export function CampusScene({ derived }: { derived: Derived }) {
   }, [snapshot]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full bg-[linear-gradient(180deg,#dfe7f3_0%,#eef1f6_45%,#f4f1ea_100%)]">
     <Canvas
-      shadows
-      orthographic
+      shadows="soft"
       dpr={dpr}
-      camera={{ position: [48, 48, 54], zoom: 15, near: -500, far: 2000 }}
+      gl={{ alpha: true, antialias: false, powerPreference: 'high-performance' }}
+      camera={{ position: CAMERA_POSITION, fov: 30, near: 1, far: 900 }}
       onPointerMissed={() => select(null)}
     >
       <LabelPortal.Provider value={labels}>
-      <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => setDpr(1.5)} flipflops={3} onFallback={() => setDpr(1)} />
-      <color attach="background" args={[SCENE_COLORS.background]} />
-      <fog attach="fog" args={[SCENE_COLORS.background, 160, 320]} />
+      <PerformanceMonitor
+        onDecline={() => { setDpr(1); setEffects(false); }}
+        onIncline={() => setDpr(1.5)}
+        flipflops={3}
+        onFallback={() => { setDpr(1); setEffects(false); }}
+      />
+      <fog attach="fog" args={[SCENE_COLORS.background, 210, 460]} />
+      <LocalEnvironment />
       <FocusLighting />
 
       <Ground layout={layout} />
 
       {snapshot.practiceAreas.map((area) => (
-        <Building key={area.id} area={area} stats={stats.get(area.id)!} layout={layout} overloaded={overloaded.get(area.id)} />
+        <Building key={area.id} area={area} stats={stats.get(area.id)!} layout={layout} overloaded={overloaded.get(area.id)}
+          staffCount={staffCount.get(area.id) ?? 0}
+          variant={snapshot.practiceAreas.indexOf(area)}
+        />
       ))}
 
       {snapshot.matters
@@ -138,16 +179,21 @@ export function CampusScene({ derived }: { derived: Derived }) {
 
       <MapControls
         makeDefault
-        target={[0, 0, 6]}
+        target={TARGET}
         enableDamping
         dampingFactor={0.12}
-        minPolarAngle={ISO_POLAR}
-        maxPolarAngle={ISO_POLAR}
-        minZoom={6}
-        maxZoom={60}
+        minPolarAngle={VIEW_POLAR}
+        maxPolarAngle={VIEW_POLAR}
+        minDistance={28}
+        maxDistance={230}
         screenSpacePanning={false}
       />
       <CameraRig layout={layout} />
+      <EffectComposer multisampling={effects ? 4 : 2} enableNormalPass={false}>
+        <N8AO enabled={effects} halfRes aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality="medium" color="#2a3350" />
+        <Bloom luminanceThreshold={0.92} luminanceSmoothing={0.2} intensity={effects ? 0.45 : 0} mipmapBlur />
+        <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+      </EffectComposer>
       </LabelPortal.Provider>
     </Canvas>
     <div ref={labels} className="pointer-events-none absolute inset-0 overflow-hidden" />

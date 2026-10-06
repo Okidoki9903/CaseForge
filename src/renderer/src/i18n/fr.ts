@@ -2,6 +2,11 @@
 export const fr = {
   webDemo: { banner: 'Version démo navigateur — les données restent uniquement sur votre ordinateur', details: 'Données fictives, enregistrées dans ce navigateur (IndexedDB). Aucune information n’est envoyée à un serveur.' },
   app: { tagline: 'Centre de commandement du cabinet', local: '100 % local', localHint: 'Aucune donnée ne quitte ce poste. Stockage : {{storage}}.', loading: 'Chargement des données locales…', session: 'Session' },
+  scene: {
+    areaMeta: '{{matters}} dossiers · {{staff}} pers.',
+    alerts_one: '{{count}} alerte',
+    alerts_other: '{{count}} alertes',
+  },
   hud: {
     wip: 'WIP non facturé',
     wipWeek: '{{amount}} cette semaine',
