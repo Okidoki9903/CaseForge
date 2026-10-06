@@ -5,8 +5,9 @@
  *  - Electron : SQLite (better-sqlite3) dans le processus principal, via IPC.
  *  - Mode démo navigateur : IndexedDB.
  */
+import type { NewDeadlineInput, NewMatterInput } from './domain/matters';
 import type {
-  ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, NewFirmInput, Staff, StaffInput, Id, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
+  Deadline, Matter, ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, NewFirmInput, Staff, StaffInput, Id, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
 } from './types';
 
 export interface CaseForgeApi {
@@ -35,6 +36,10 @@ export interface CaseForgeApi {
   recordConflictCheck(query: string, actor: string, matterId?: Id | null): Promise<ConflictCheck>;
   /** Change le statut et/ou le dossier visé d'une vérification ; journalisé. */
   updateConflictCheck(id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }, actor: string): Promise<void>;
+  /** Ouvre un dossier ; vérifie automatiquement les conflits (client et parties adverses). */
+  createMatter(input: NewMatterInput, actor: string): Promise<Matter>;
+  /** Ajoute une échéance (calculée par une règle du catalogue ou saisie directement). */
+  addDeadline(input: NewDeadlineInput, actor: string): Promise<Deadline>;
   /** Met à jour les paramètres du cabinet (nom, ressorts, taux par défaut, accueil terminé). */
   updateSettings(patch: Partial<FirmSettings>, actor: string | null): Promise<void>;
   /** Crée ou modifie un collaborateur ; un nouveau taux ne vaut que pour les saisies futures. */
@@ -63,4 +68,6 @@ export const IPC = {
   saveStaff: 'cf:saveStaff',
   setStaffActive: 'cf:setStaffActive',
   createEmptyFirm: 'cf:createEmptyFirm',
+  createMatter: 'cf:createMatter',
+  addDeadline: 'cf:addDeadline',
 } as const;

@@ -9,7 +9,8 @@ import { localToday } from '@shared/domain/dates';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
 import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
-import { CONFLICT_STATUSES, PIPELINE_STAGES, type ConflictCheck, type Staff } from '@shared/types';
+import { CONFLICT_STATUSES, PIPELINE_STAGES, type ConflictCheck, type Deadline, type Matter, type Staff } from '@shared/types';
+import { buildDeadline, findPartyByName, nextMatterNumber, normalizeNewMatter, partyKindFor } from '@shared/domain/matters';
 import { emptyFirmSnapshot, normalizeSettingsPatch, normalizeStaffInput } from '@shared/domain/firm';
 
 const DB_NAME = 'caseforge-demo';
@@ -231,6 +232,59 @@ export function createDemoApi(): CaseForgeApi {
         p.active = active;
         audit(s, who, active ? 'activate_staff' : 'deactivate_staff', 'staff', id);
       }),
+    createMatter: async (input, actor) => {
+      let created: Matter | undefined;
+      await mutate((s) => {
+        const who = normalizeInitials(actor);
+        const clean = normalizeNewMatter(input, s);
+        const today = localToday();
+        const checks = [
+          { name: clean.clientName, as: 'client' as const },
+          ...clean.adverseNames.map((name) => ({ name, as: 'adverse' as const })),
+        ].map(({ name, as }) => {
+          const hits = toCheckHits(searchConflicts(name, s));
+          return { name, hits, status: initialConflictStatus(hits, as) };
+        });
+        const ensureParty = (name: string) => {
+          const existing = findPartyByName(s, name);
+          if (existing) return existing;
+          const id = `p-${crypto.randomUUID()}`;
+          s.parties.push({ id, name, kind: partyKindFor(name), aliases: [] });
+          return id;
+        };
+        const m: Matter = {
+          id: `m-${crypto.randomUUID()}`, number: nextMatterNumber(s.matters, today.slice(0, 4)), title: clean.title,
+          clientId: ensureParty(clean.clientName), practiceAreaId: clean.practiceAreaId, responsibleId: clean.responsibleId,
+          teamIds: [], stage: 'ouverture', status: 'actif', jurisdiction: clean.jurisdiction, court: null, courtFileNumber: null,
+          feeArrangement: clean.feeArrangement, budgetCents: clean.budgetCents, openedAt: today,
+        };
+        s.matters.push(m);
+        s.matterParties.push({ matterId: m.id, partyId: m.clientId, role: 'client' });
+        clean.adverseNames.forEach((n) => s.matterParties.push({ matterId: m.id, partyId: ensureParty(n), role: 'adverse' }));
+        for (const c of checks) {
+          const check: ConflictCheck = {
+            id: `cc-${crypto.randomUUID()}`, query: c.name, performedBy: who, performedAt: new Date().toISOString(),
+            status: c.status, matterId: m.id, hits: c.hits, updatedAt: null, updatedBy: null,
+          };
+          s.conflictChecks.unshift(check);
+          audit(s, who, 'conflict_check', 'conflict_check', check.id, { query: c.name, hits: c.hits.length, status: c.status });
+        }
+        audit(s, who, 'create_matter', 'matter', m.id, { number: m.number, title: m.title });
+        created = m;
+      });
+      return created!;
+    },
+    addDeadline: async (input, actor) => {
+      let created: Deadline | undefined;
+      await mutate((s) => {
+        const who = normalizeInitials(actor);
+        const d = buildDeadline(input, s, `d-${crypto.randomUUID()}`);
+        s.deadlines.push(d);
+        audit(s, who, 'add_deadline', 'deadline', d.id, { matterId: d.matterId, dueDate: d.dueDate, ruleId: d.ruleId });
+        created = d;
+      });
+      return created!;
+    },
     createEmptyFirm: async (input) => {
       const s = emptyFirmSnapshot(input);
       audit(s, s.staff[0].initials, 'create_firm', 'settings', 'firm', { firmName: s.settings.firmName });

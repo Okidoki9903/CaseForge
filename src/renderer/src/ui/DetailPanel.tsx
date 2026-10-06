@@ -1,7 +1,7 @@
 /**
  * Panneau contextuel : s'ouvre au clic sur un dossier, un pôle, un collaborateur ou un nœud externe.
  */
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PIPELINE_STAGES, type Matter, type Party, type PracticeArea, type Staff } from '@shared/types';
 import { ALERT_COLORS } from '@shared/domain/alerts';
@@ -13,6 +13,7 @@ import { formatWhen, hours, money, percent } from '../lib/format';
 import { LOAD_COLORS, ROLE_COLORS, STAGE_COLORS } from '../scene/palette';
 import { AlertCard } from './AlertCenter';
 import { TimePanel } from './TimePanel';
+import { NewDeadline } from './NewDeadline';
 import { History } from './ConflictSearch';
 import { CONFLICT_COLORS } from './conflictStyles';
 import { MATTER_DND_TYPE } from '../lib/dnd';
@@ -68,6 +69,7 @@ function Header({ eyebrow, title, color, children }: { eyebrow: string; title: s
 
 function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived }) {
   const { t } = useTranslation();
+  const [addingDeadline, setAddingDeadline] = useState(false);
   const setStage = useFirm((s) => s.setStage);
   const select = useFirm((s) => s.select);
   const { snapshot } = derived;
@@ -146,7 +148,21 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
         </div>
       </Section>
 
-      <Section title={t('matter.deadlines')}>
+      <Section
+        title={t('matter.deadlines')}
+        aside={
+          !addingDeadline && (
+            <button type="button" onClick={() => setAddingDeadline(true)} className="text-[11px] font-semibold text-[var(--color-brand)] hover:underline">
+              ＋ {t('newDeadline.button')}
+            </button>
+          )
+        }
+      >
+        {addingDeadline && (
+          <div className="mb-2">
+            <NewDeadline matter={m} derived={derived} onDone={() => setAddingDeadline(false)} />
+          </div>
+        )}
         {alerts.length === 0 ? (
           <p className="text-xs text-[var(--color-muted)]">{t('matter.noDeadlines')}</p>
         ) : (

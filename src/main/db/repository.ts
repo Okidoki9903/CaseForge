@@ -3,13 +3,14 @@
  */
 import type Database from 'better-sqlite3';
 import type {
-  ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, NewFirmInput, Staff, StaffInput, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
+  ConflictCheck, ConflictStatus, Deadline, FirmSettings, FirmSnapshot, NewFirmInput, Staff, StaffInput, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
 } from '@shared/types';
 import { CONFLICT_STATUSES, PIPELINE_STAGES } from '@shared/types';
 import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
 import { DEFAULT_SETTINGS, emptyFirmSnapshot, normalizeSettingsPatch, normalizeStaffInput } from '@shared/domain/firm';
+import { buildDeadline, findPartyByName, nextMatterNumber, normalizeNewMatter, partyKindFor, type NewDeadlineInput, type NewMatterInput } from '@shared/domain/matters';
 import { buildDemoSnapshot } from '@shared/seed';
 import { MIGRATIONS } from './migrations';
 
@@ -169,6 +170,82 @@ export class Repository {
         to: { status, matterId },
       });
     })();
+  }
+
+  /**
+   * Ouvre un dossier. Les vérifications de conflits (client et parties adverses) sont faites
+   * AVANT la création, sur les données existantes, puis enregistrées et rattachées au dossier.
+   */
+  createMatter(input: NewMatterInput, actor: string): Matter {
+    const who = normalizeInitials(actor);
+    const before = this.getSnapshot();
+    const clean = normalizeNewMatter(input, before);
+    const today = new Date().toISOString().slice(0, 10);
+    const matter: Matter = {
+      id: `m-${crypto.randomUUID()}`,
+      number: nextMatterNumber(before.matters, today.slice(0, 4)),
+      title: clean.title,
+      clientId: findPartyByName(before, clean.clientName) ?? `p-${crypto.randomUUID()}`,
+      practiceAreaId: clean.practiceAreaId,
+      responsibleId: clean.responsibleId,
+      teamIds: [],
+      stage: 'ouverture',
+      status: 'actif',
+      jurisdiction: clean.jurisdiction,
+      court: null,
+      courtFileNumber: null,
+      feeArrangement: clean.feeArrangement,
+      budgetCents: clean.budgetCents,
+      openedAt: today,
+    };
+    const checks = [
+      { name: clean.clientName, as: 'client' as const },
+      ...clean.adverseNames.map((name) => ({ name, as: 'adverse' as const })),
+    ].map(({ name, as }) => {
+      const hits = toCheckHits(searchConflicts(name, before));
+      return { name, as, hits, status: initialConflictStatus(hits, as) };
+    });
+
+    this.db.transaction(() => {
+      const party = this.db.prepare('INSERT INTO parties (id, name, kind, aliases_json) VALUES (?, ?, ?, ?)');
+      if (!before.parties.some((p) => p.id === matter.clientId)) party.run(matter.clientId, clean.clientName, partyKindFor(clean.clientName), '[]');
+      this.db
+        .prepare(`INSERT INTO matters VALUES (@id, @number, @title, @clientId, @practiceAreaId, @responsibleId, @stage,
+          @status, @jurisdiction, @court, @courtFileNumber, @feeArrangement, @budgetCents, @openedAt)`)
+        .run(matter);
+      const link = this.db.prepare('INSERT OR IGNORE INTO matter_parties VALUES (?, ?, ?)');
+      link.run(matter.id, matter.clientId, 'client');
+      for (const name of clean.adverseNames) {
+        let id = findPartyByName(before, name);
+        if (!id) {
+          id = `p-${crypto.randomUUID()}`;
+          party.run(id, name, partyKindFor(name), '[]');
+        }
+        link.run(matter.id, id, 'adverse');
+      }
+      const cc = this.db.prepare(`INSERT INTO conflict_checks (id, query, performed_by, performed_at, results_json, status, matter_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`);
+      for (const c of checks) {
+        const id = `cc-${crypto.randomUUID()}`;
+        cc.run(id, c.name, who, new Date().toISOString(), JSON.stringify(c.hits), c.status, matter.id);
+        this.audit(who, 'conflict_check', 'conflict_check', id, { query: c.name, hits: c.hits.length, status: c.status, as: c.as });
+      }
+      this.audit(who, 'create_matter', 'matter', matter.id, { number: matter.number, title: matter.title });
+    })();
+    return matter;
+  }
+
+  addDeadline(input: NewDeadlineInput, actor: string): Deadline {
+    const who = normalizeInitials(actor);
+    const d = buildDeadline(input, this.getSnapshot(), `d-${crypto.randomUUID()}`);
+    this.db.transaction(() => {
+      this.db
+        .prepare(`INSERT INTO deadlines VALUES (@id, @matterId, @kind, @title, @dueDate, @legalBasis, @ruleId,
+          @triggerDate, @assignedTo, @status, @acknowledgedAt, @acknowledgedBy, @completedAt)`)
+        .run(d);
+      this.audit(who, 'add_deadline', 'deadline', d.id, { matterId: d.matterId, dueDate: d.dueDate, ruleId: d.ruleId });
+    })();
+    return d;
   }
 
   setMatterStage(id: Id, stage: PipelineStage, actor: string): void {

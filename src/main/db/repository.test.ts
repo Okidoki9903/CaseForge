@@ -181,4 +181,30 @@ describe('dépôt SQLite', () => {
     expect(() => repo.setStaffActive(owner.id, false, 'AR')).toThrow(/au moins un/);
     expect(s.auditLog[0]).toMatchObject({ action: 'create_firm', actor: 'AR' });
   });
+
+  it('ouverture de dossier : vérifications de conflits avant création, rattachées au dossier', () => {
+    const { repo } = freshRepo();
+    const m = repo.createMatter({
+      title: 'Réclamation — chantier Blainville', clientName: 'Béton Laurentides inc.', adverseNames: ['Construction Rive-Nord'],
+      practiceAreaId: 'pa-lit', responsibleId: 'st-01', jurisdiction: 'QC', feeArrangement: 'horaire', budgetCents: 1_000_000,
+    }, 'hb');
+    const s = repo.getSnapshot();
+    expect(m.number).toMatch(/^\d{4}-\d{4}$/);
+    expect(m.stage).toBe('ouverture');
+    // Le client existant (Béton Laurentides, adverse ailleurs) est réutilisé, pas dupliqué.
+    expect(s.parties.filter((p) => p.name.startsWith('Béton Laurentides'))).toHaveLength(1);
+    const checks = s.conflictChecks.filter((c) => c.matterId === m.id);
+    expect(checks.map((c) => c.status).sort()).toEqual(['potentiel', 'potentiel']);
+    // Les correspondances ne contiennent pas le nouveau dossier lui-même.
+    expect(checks.every((c) => c.hits.every((h) => h.roles.every((r) => r.matterId !== m.id)))).toBe(true);
+    expect(s.auditLog.some((a) => a.action === 'create_matter' && a.entityId === m.id && a.actor === 'HB')).toBe(true);
+  });
+
+  it('ajout d’échéance par règle du catalogue', () => {
+    const { repo } = freshRepo();
+    const d = repo.addDeadline({ matterId: 'm-001', assignedTo: 'st-01', ruleId: 'QC_APPEL', triggerDate: '2026-10-01' }, 'HB');
+    expect(d.dueDate).toBe('2026-10-31');
+    expect(repo.getSnapshot().deadlines.some((x) => x.id === d.id)).toBe(true);
+    expect(() => repo.addDeadline({ matterId: 'm-001', assignedTo: 'st-01', ruleId: 'QC_APPEL', triggerDate: '2026-10-01' }, '')).toThrow();
+  });
 });

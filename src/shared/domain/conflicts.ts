@@ -91,9 +91,19 @@ export function toCheckHits(hits: ConflictHit[]): ConflictCheckHit[] {
   }));
 }
 
-/** Statut initial automatique : aucune correspondance → « Clair », sinon « Conflit potentiel ». */
-export function initialConflictStatus(hits: ConflictCheckHit[]): ConflictStatus {
-  return hits.length === 0 ? 'clair' : 'potentiel';
+/**
+ * Statut initial automatique.
+ *  - Recherche générale (Ctrl+K) : aucune correspondance → « Clair », sinon « Conflit potentiel ».
+ *  - À l'ouverture d'un dossier, on connaît le rôle de la personne vérifiée :
+ *    · futur CLIENT : conflit si elle est (ou a été) partie adverse ou liée ailleurs ;
+ *    · future partie ADVERSE : conflit si elle est (ou a été) notre cliente ou partie liée.
+ *    Un client récurrent, ou un adversaire déjà affronté, n'est pas en soi un conflit.
+ */
+export function initialConflictStatus(hits: ConflictCheckHit[], as?: 'client' | 'adverse'): ConflictStatus {
+  if (hits.length === 0) return 'clair';
+  if (!as) return 'potentiel';
+  const opposing: PartyRole[] = as === 'client' ? ['adverse', 'avocat_adverse', 'liee'] : ['client', 'liee'];
+  return hits.some((h) => h.roles.some((r) => opposing.includes(r.role))) ? 'potentiel' : 'clair';
 }
 
 /** Requête normalisée, pour éviter d'enregistrer deux fois la même recherche. */

@@ -9,6 +9,7 @@ import type {
   ConflictStatus, FirmSettings, NewFirmInput, NewTimeEntry, PipelineStage, StaffInput, TimeEntryStatus,
 } from '@shared/types';
 import { localToday } from '@shared/domain/dates';
+import type { NewDeadlineInput, NewMatterInput } from '@shared/domain/matters';
 import type { Repository } from './db/repository';
 
 const str = (v: unknown, name: string): string => {
@@ -103,6 +104,20 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
     const owner = repo.createEmptyFirm(input as NewFirmInput);
     onDataChanged();
     return owner;
+  });
+
+  ipcMain.handle(IPC.createMatter, (_e, input: unknown, actor: unknown) => {
+    if (!input || typeof input !== 'object') throw new Error('Dossier invalide.');
+    const m = repo.createMatter(input as NewMatterInput, str(actor, 'actor'));
+    onDataChanged();
+    return m;
+  });
+
+  ipcMain.handle(IPC.addDeadline, (_e, input: unknown, actor: unknown) => {
+    if (!input || typeof input !== 'object') throw new Error('Échéance invalide.');
+    const d = repo.addDeadline(input as NewDeadlineInput, str(actor, 'actor'));
+    onDataChanged();
+    return d;
   });
 
   ipcMain.handle(IPC.resetDemoData, () => {

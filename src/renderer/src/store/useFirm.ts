@@ -8,6 +8,7 @@ import type {
   ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, Id, NewFirmInput, PipelineStage, StaffInput, TimeEntry, TimeEntryStatus,
 } from '@shared/types';
 import { timeEntriesToCsv } from '@shared/domain/time';
+import type { NewDeadlineInput, NewMatterInput } from '@shared/domain/matters';
 import { localToday } from '@shared/domain/dates';
 import { api } from '../api';
 
@@ -57,6 +58,10 @@ interface FirmState {
   setTimeDrawerOpen: (open: boolean) => void;
   recordConflictCheck: (query: string, matterId?: Id | null) => Promise<ConflictCheck | null>;
   updateConflictCheck: (id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }) => Promise<void>;
+  newMatterOpen: boolean;
+  setNewMatterOpen: (open: boolean) => void;
+  createMatter: (input: NewMatterInput) => Promise<boolean>;
+  addDeadline: (input: NewDeadlineInput) => Promise<boolean>;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   updateSettings: (patch: Partial<FirmSettings>) => Promise<boolean>;
@@ -198,6 +203,14 @@ export const useFirm = create<FirmState>((set, get) => {
     updateConflictCheck: async (id, patch) => {
       await run(() => api.updateConflictCheck(id, patch, get().actor()));
     },
+    newMatterOpen: false,
+    setNewMatterOpen: (newMatterOpen) => set({ newMatterOpen }),
+    createMatter: (input) =>
+      run(async () => {
+        const m = await api.createMatter(input, get().actor());
+        set({ newMatterOpen: false, selection: { kind: 'matter', id: m.id } });
+      }),
+    addDeadline: (input) => run(() => api.addDeadline(input, get().actor())),
     settingsOpen: false,
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     updateSettings: (patch) => run(() => api.updateSettings(patch, get().actor() || null)),

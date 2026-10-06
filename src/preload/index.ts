@@ -21,6 +21,8 @@ const api: CaseForgeApi = {
   saveStaff: (input, actor) => ipcRenderer.invoke(IPC.saveStaff, input, actor),
   setStaffActive: (id, active, actor) => ipcRenderer.invoke(IPC.setStaffActive, id, active, actor),
   createEmptyFirm: (input) => ipcRenderer.invoke(IPC.createEmptyFirm, input),
+  createMatter: (input, actor) => ipcRenderer.invoke(IPC.createMatter, input, actor),
+  addDeadline: (input, actor) => ipcRenderer.invoke(IPC.addDeadline, input, actor),
 };
 
 contextBridge.exposeInMainWorld('caseforge', api);

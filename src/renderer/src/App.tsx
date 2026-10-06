@@ -12,6 +12,7 @@ import { PipelineBar } from './ui/PipelineBar';
 import { TimeDrawer } from './ui/TimeDrawer';
 import { Onboarding } from './ui/Onboarding';
 import { Settings } from './ui/Settings';
+import { EmptyFirmHint, NewMatter } from './ui/NewMatter';
 import { TopBar } from './ui/TopBar';
 
 const REFRESH_MS = 60_000;
@@ -55,6 +56,8 @@ export function App() {
         <AlertCenter derived={derived} />
         <TimeDrawer derived={derived} />
         <ConflictSearch derived={derived} />
+        <EmptyFirmHint derived={derived} />
+        <NewMatter derived={derived} />
         <Settings derived={derived} />
         <Onboarding derived={derived} />
         {error && (
