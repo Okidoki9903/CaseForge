@@ -9,7 +9,8 @@ import { localToday } from '@shared/domain/dates';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
 import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
-import { CONFLICT_STATUSES, PIPELINE_STAGES, type ConflictCheck } from '@shared/types';
+import { CONFLICT_STATUSES, PIPELINE_STAGES, type ConflictCheck, type Staff } from '@shared/types';
+import { emptyFirmSnapshot, normalizeSettingsPatch, normalizeStaffInput } from '@shared/domain/firm';
 
 const DB_NAME = 'caseforge-demo';
 const STORE = 'kv';
@@ -60,6 +61,12 @@ export function createDemoApi(): CaseForgeApi {
     // Données enregistrées par une version antérieure : champs ajoutés depuis.
     memory.conflictChecks ??= [];
     memory.auditLog ??= [];
+    // Versions antérieures : nom du cabinet à la racine, collaborateurs sans statut actif.
+    const legacy = memory as FirmSnapshot & { firmName?: string };
+    if (!memory.settings) {
+      memory.settings = { firmName: legacy.firmName ?? 'Cabinet Démo s.e.n.c.r.l.', jurisdictions: ['QC', 'ON', 'FED'], defaultRateCents: 32_500, onboarded: false, demo: true };
+    }
+    memory.staff.forEach((p) => (p.active ??= true));
     return memory;
   };
   const save = async (s: FirmSnapshot) => {
@@ -119,8 +126,8 @@ export function createDemoApi(): CaseForgeApi {
         const description = e.description.trim();
         if (!description) throw new Error('Description requise.');
         if (!s.matters.some((m) => m.id === e.matterId)) throw new Error('Dossier introuvable.');
-        const staff = s.staff.find((x) => x.id === e.staffId);
-        if (!staff) throw new Error('Collaborateur introuvable.');
+        const staff = s.staff.find((x) => x.id === e.staffId && x.active);
+        if (!staff) throw new Error('Collaborateur introuvable ou inactif.');
         created = {
           id: `t-${crypto.randomUUID()}`,
           matterId: e.matterId,
@@ -190,6 +197,45 @@ export function createDemoApi(): CaseForgeApi {
         c.updatedBy = who;
         audit(s, who, 'update_conflict_check', 'conflict_check', id, { from, to: { status: c.status, matterId: c.matterId } });
       }),
-    resetDemoData: () => save(buildDemoSnapshot(localToday())),
+    resetDemoData: () => {
+      const s = buildDemoSnapshot(localToday());
+      s.settings.onboarded = true;
+      return save(s);
+    },
+    updateSettings: (patch, actor) =>
+      mutate((s) => {
+        const clean = normalizeSettingsPatch(patch);
+        const who = actor ? normalizeInitials(actor) : 'local';
+        s.settings = { ...s.settings, ...clean };
+        audit(s, who, 'update_settings', 'settings', 'firm', clean);
+      }),
+    saveStaff: async (input, actor) => {
+      let saved: Staff | undefined;
+      await mutate((s) => {
+        const who = normalizeInitials(actor);
+        const clean = normalizeStaffInput(input, s.staff, s.practiceAreas.map((a) => a.id));
+        const existing = input.id ? s.staff.find((p) => p.id === input.id) : undefined;
+        if (input.id && !existing) throw new Error('Collaborateur introuvable.');
+        saved = { id: existing?.id ?? `st-${crypto.randomUUID()}`, active: existing?.active ?? true, ...clean };
+        s.staff = existing ? s.staff.map((p) => (p.id === saved!.id ? saved! : p)) : [...s.staff, saved];
+        audit(s, who, existing ? 'update_staff' : 'create_staff', 'staff', saved.id);
+      });
+      return saved!;
+    },
+    setStaffActive: (id, active, actor) =>
+      mutate((s) => {
+        const who = normalizeInitials(actor);
+        const p = s.staff.find((x) => x.id === id);
+        if (!p) throw new Error('Collaborateur introuvable.');
+        if (!active && !s.staff.some((x) => x.active && x.id !== id)) throw new Error('Le cabinet doit conserver au moins un collaborateur actif.');
+        p.active = active;
+        audit(s, who, active ? 'activate_staff' : 'deactivate_staff', 'staff', id);
+      }),
+    createEmptyFirm: async (input) => {
+      const s = emptyFirmSnapshot(input);
+      audit(s, s.staff[0].initials, 'create_firm', 'settings', 'firm', { firmName: s.settings.firmName });
+      await save(s);
+      return s.staff[0];
+    },
   };
 }

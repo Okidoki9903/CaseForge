@@ -18,6 +18,7 @@ export function useDerived() {
     const alertsByMatter = new Map<Id, DeadlineAlert[]>();
     for (const a of alerts) alertsByMatter.set(a.matter.id, [...(alertsByMatter.get(a.matter.id) ?? []), a]);
     const matterLevel = (id: Id) => worstLevel(alertsByMatter.get(id) ?? []);
+    const activeStaff = snapshot.staff.filter((p) => p.active);
     const loads = new Map<Id, StaffLoad>(snapshot.staff.map((p) => [p.id, staffLoad(p, snapshot, today, alerts)]));
     return {
       snapshot,
@@ -30,6 +31,8 @@ export function useDerived() {
       /** Dossiers visés par une vérification de conflits potentielle ou confirmée. */
       conflicts: flaggedMatters(snapshot.conflictChecks),
       staffById: new Map(snapshot.staff.map((p) => [p.id, p])),
+      /** Collaborateurs actifs (les anciens restent visibles dans l'historique et les entrées de temps). */
+      activeStaff,
       partyById: new Map(snapshot.parties.map((p) => [p.id, p])),
       areaById: new Map(snapshot.practiceAreas.map((a) => [a.id, a])),
     };

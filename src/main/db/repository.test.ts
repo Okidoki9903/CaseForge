@@ -141,4 +141,44 @@ describe('dépôt SQLite', () => {
     expect(log.actor).toBe('HB');
     expect(() => repo.completeDeadline(first.deadline.id, 'HB')).toThrow(); // déjà fermée
   });
+
+  it('paramètres persistés et journalisés', () => {
+    const { repo } = freshRepo();
+    expect(repo.getSettings()).toMatchObject({ demo: true, onboarded: false, jurisdictions: ['QC', 'ON', 'FED'] });
+    repo.updateSettings({ firmName: 'Roy Avocats', jurisdictions: ['QC', 'BC'], defaultRateCents: 35000, onboarded: true }, 'hb');
+    expect(repo.getSnapshot().settings).toMatchObject({ firmName: 'Roy Avocats', jurisdictions: ['QC', 'BC'], defaultRateCents: 35000, onboarded: true });
+    expect(() => repo.updateSettings({ jurisdictions: [] }, 'HB')).toThrow();
+    expect(repo.getSnapshot().auditLog[0]).toMatchObject({ action: 'update_settings', actor: 'HB' });
+  });
+
+  it('collaborateurs : création, modification du taux (futur seulement), désactivation', () => {
+    const { repo } = freshRepo();
+    const p = repo.saveStaff({ name: 'Me Anne Roy', initials: 'anr', role: 'avocat', practiceAreaId: 'pa-lit', hourlyRateCents: 30000, targetHoursWeek: 30 }, 'HB');
+    expect(repo.getSnapshot().staff.find((x) => x.id === p.id)).toMatchObject({ initials: 'ANR', active: true });
+    expect(() => repo.saveStaff({ name: 'Autre', initials: 'HB', role: 'avocat', practiceAreaId: 'pa-lit', hourlyRateCents: 1, targetHoursWeek: 30 }, 'HB')).toThrow(/déjà utilisées/);
+    const e = repo.addTimeEntry({ matterId: 'm-001', staffId: p.id, date: '2026-10-06', minutes: 60, billable: true, description: 'Test' });
+    repo.saveStaff({ ...p, hourlyRateCents: 40000 }, 'HB');
+    expect(repo.getSnapshot().timeEntries.find((t) => t.id === e.id)?.rateCents).toBe(30000);
+    repo.setStaffActive(p.id, false, 'HB');
+    expect(repo.getSnapshot().staff.find((x) => x.id === p.id)?.active).toBe(false);
+    expect(() => repo.addTimeEntry({ matterId: 'm-001', staffId: p.id, date: '2026-10-06', minutes: 6, billable: true, description: 'X' })).toThrow(/inactif/);
+    // L'entrée existante reste lisible avec son auteur.
+    expect(repo.getSnapshot().timeEntries.find((t) => t.id === e.id)?.staffId).toBe(p.id);
+  });
+
+  it('cabinet vide : remplace tout, un seul collaborateur, dernier actif protégé', () => {
+    const { repo } = freshRepo();
+    const owner = repo.createEmptyFirm({
+      firmName: 'Roy Avocats', jurisdictions: ['ON'], defaultRateCents: 30000,
+      owner: { name: 'Me Anne Roy', initials: 'AR', role: 'associe', hourlyRateCents: 45000, targetHoursWeek: 30 },
+    });
+    const s = repo.getSnapshot();
+    expect(s.settings).toMatchObject({ firmName: 'Roy Avocats', demo: false, onboarded: true, jurisdictions: ['ON'] });
+    expect(s.matters).toHaveLength(0);
+    expect(s.deadlines).toHaveLength(0);
+    expect(s.conflictChecks).toHaveLength(0);
+    expect(s.staff).toEqual([expect.objectContaining({ id: owner.id, initials: 'AR' })]);
+    expect(() => repo.setStaffActive(owner.id, false, 'AR')).toThrow(/au moins un/);
+    expect(s.auditLog[0]).toMatchObject({ action: 'create_firm', actor: 'AR' });
+  });
 });

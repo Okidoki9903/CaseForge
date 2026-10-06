@@ -10,6 +10,7 @@ import type {
 import { addDays, addYears } from './domain/dates';
 import { nextJuridicalDay } from './domain/calendar';
 import { searchConflicts, toCheckHits } from './domain/conflicts';
+import { DEFAULT_PRACTICE_AREAS } from './domain/firm';
 
 function mulberry32(seed: number) {
   return () => {
@@ -21,15 +22,9 @@ function mulberry32(seed: number) {
   };
 }
 
-const AREAS: PracticeArea[] = [
-  { id: 'pa-lit', code: 'LIT', name: 'Litige civil et commercial', color: '#4f6bed', gridX: -1, gridZ: -1 },
-  { id: 'pa-aff', code: 'AFF', name: 'Droit des affaires', color: '#0e9f8f', gridX: 1, gridZ: -1 },
-  { id: 'pa-trv', code: 'TRV', name: 'Droit du travail', color: '#d9822b', gridX: -1, gridZ: 1 },
-  { id: 'pa-fam', code: 'FAM', name: 'Droit de la famille', color: '#c2417d', gridX: 1, gridZ: 1 },
-  { id: 'pa-pi', code: 'PI', name: 'Propriété intellectuelle', color: '#7c4dcc', gridX: 0, gridZ: 2.6 },
-];
+const AREAS: PracticeArea[] = DEFAULT_PRACTICE_AREAS;
 
-const STAFF: Staff[] = [
+const STAFF: Omit<Staff, 'active'>[] = [
   { id: 'st-01', name: 'Me Hélène Bouchard', initials: 'HB', role: 'associe', practiceAreaId: 'pa-lit', hourlyRateCents: 52500, costRateCents: 19000, targetHoursWeek: 32 },
   { id: 'st-02', name: 'Me Karim Haddad', initials: 'KH', role: 'avocat', practiceAreaId: 'pa-lit', hourlyRateCents: 32500, costRateCents: 11500, targetHoursWeek: 34 },
   { id: 'st-03', name: 'Me Sophie Lavoie', initials: 'SL', role: 'associe', practiceAreaId: 'pa-aff', hourlyRateCents: 55000, costRateCents: 20000, targetHoursWeek: 30 },
@@ -266,9 +261,15 @@ export function buildDemoSnapshot(today: string): FirmSnapshot {
   });
 
   const snapshot: FirmSnapshot = {
-    firmName: 'Cabinet Démo s.e.n.c.r.l.',
+    settings: {
+      firmName: 'Cabinet Démo s.e.n.c.r.l.',
+      jurisdictions: ['QC', 'ON', 'FED'],
+      defaultRateCents: 32_500,
+      onboarded: false,
+      demo: true,
+    },
     practiceAreas: AREAS,
-    staff: STAFF,
+    staff: STAFF.map((p) => ({ ...p, active: true })),
     parties: PARTIES,
     matters,
     matterParties,

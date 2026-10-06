@@ -295,7 +295,7 @@ function AreaDetail({ area, derived }: { area: PracticeArea; derived: Derived })
   const { snapshot, today, alerts } = derived;
   const stats = areaStats(area, snapshot, today, alerts);
   const matters = snapshot.matters.filter((m) => m.practiceAreaId === area.id && m.status !== 'ferme');
-  const people = snapshot.staff.filter((p) => p.practiceAreaId === area.id);
+  const people = derived.activeStaff.filter((p) => p.practiceAreaId === area.id);
   return (
     <>
       <Header eyebrow={area.code} title={area.name} color={area.color} />

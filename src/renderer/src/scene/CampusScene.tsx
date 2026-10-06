@@ -33,7 +33,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
 
   const staffPaths = useMemo(() => {
     const paths = new Map<string, Vec3[]>();
-    for (const p of snapshot.staff) {
+    for (const p of derived.activeStaff) {
       const door = layout.areas.get(p.practiceAreaId)?.door;
       const stops = snapshot.matters
         .filter((m) => m.status === 'actif' && (m.responsibleId === p.id || m.teamIds.includes(p.id)))
@@ -42,7 +42,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
       paths.set(p.id, door ? [door, ...stops] : stops);
     }
     return paths;
-  }, [snapshot, layout]);
+  }, [snapshot, layout, derived.activeStaff]);
 
   const partyRoles = useMemo(() => {
     const roles = new Map<string, (typeof snapshot.matterParties)[number]['role']>();
@@ -85,7 +85,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
           );
         })}
 
-      {snapshot.staff.map((p) => (
+      {derived.activeStaff.map((p) => (
         <StaffUnit key={p.id} staff={p} load={loads.get(p.id)!} waypoints={staffPaths.get(p.id) ?? []} />
       ))}
 

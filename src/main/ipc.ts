@@ -5,7 +5,9 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { IPC } from '@shared/api';
-import type { ConflictStatus, NewTimeEntry, PipelineStage, TimeEntryStatus } from '@shared/types';
+import type {
+  ConflictStatus, FirmSettings, NewFirmInput, NewTimeEntry, PipelineStage, StaffInput, TimeEntryStatus,
+} from '@shared/types';
 import { localToday } from '@shared/domain/dates';
 import type { Repository } from './db/repository';
 
@@ -82,8 +84,29 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
     );
   });
 
+  ipcMain.handle(IPC.updateSettings, (_e, patch: unknown, actor: unknown) => {
+    if (!patch || typeof patch !== 'object') throw new Error('Paramètres invalides.');
+    repo.updateSettings(patch as Partial<FirmSettings>, actor == null ? null : str(actor, 'actor'));
+  });
+
+  ipcMain.handle(IPC.saveStaff, (_e, input: unknown, actor: unknown) => {
+    if (!input || typeof input !== 'object') throw new Error('Collaborateur invalide.');
+    return repo.saveStaff(input as StaffInput, str(actor, 'actor'));
+  });
+
+  ipcMain.handle(IPC.setStaffActive, (_e, id: unknown, active: unknown, actor: unknown) => {
+    repo.setStaffActive(str(id, 'id'), Boolean(active), str(actor, 'actor'));
+  });
+
+  ipcMain.handle(IPC.createEmptyFirm, (_e, input: unknown) => {
+    if (!input || typeof input !== 'object') throw new Error('Cabinet invalide.');
+    const owner = repo.createEmptyFirm(input as NewFirmInput);
+    onDataChanged();
+    return owner;
+  });
+
   ipcMain.handle(IPC.resetDemoData, () => {
-    repo.seed(localToday());
+    repo.seed(localToday(), { onboarded: true });
     onDataChanged();
   });
 }

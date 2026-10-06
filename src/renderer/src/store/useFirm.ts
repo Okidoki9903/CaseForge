@@ -4,7 +4,9 @@
  * sont recalculées dans `useDerived` à partir de l'instantané.
  */
 import { create } from 'zustand';
-import type { ConflictCheck, ConflictStatus, FirmSnapshot, Id, PipelineStage, TimeEntry, TimeEntryStatus } from '@shared/types';
+import type {
+  ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, Id, NewFirmInput, PipelineStage, StaffInput, TimeEntry, TimeEntryStatus,
+} from '@shared/types';
 import { timeEntriesToCsv } from '@shared/domain/time';
 import { localToday } from '@shared/domain/dates';
 import { api } from '../api';
@@ -55,6 +57,14 @@ interface FirmState {
   setTimeDrawerOpen: (open: boolean) => void;
   recordConflictCheck: (query: string, matterId?: Id | null) => Promise<ConflictCheck | null>;
   updateConflictCheck: (id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }) => Promise<void>;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+  updateSettings: (patch: Partial<FirmSettings>) => Promise<boolean>;
+  saveStaff: (input: StaffInput) => Promise<boolean>;
+  setStaffActive: (id: Id, active: boolean) => Promise<void>;
+  /** Accueil : continuer avec la démo déjà chargée. */
+  startWithDemo: () => Promise<void>;
+  createEmptyFirm: (input: NewFirmInput) => Promise<boolean>;
   /** Initiales de l'utilisateur de la session (auteur des actions journalisées). */
   actor: () => string;
   startTimer: (matterId: Id) => void;
@@ -86,7 +96,20 @@ export const useFirm = create<FirmState>((set, get) => {
   const run = async (fn: () => Promise<unknown>): Promise<boolean> => {
     try {
       await fn();
-      set({ snapshot: await api.getSnapshot(), error: null });
+      const snapshot = await api.getSnapshot();
+      // La session doit toujours correspondre à un collaborateur actif.
+      const active = snapshot.staff.filter((p) => p.active);
+      if (active.length && !active.some((p) => p.id === get().currentStaffId)) {
+        pref.set('cf.staff', active[0].id);
+        set({ currentStaffId: active[0].id });
+      }
+      // Chronomètre orphelin (dossier disparu après un changement de cabinet).
+      const timer = get().timer;
+      if (timer && !snapshot.matters.some((m) => m.id === timer.matterId)) {
+        pref.set('cf.timer', null);
+        set({ timer: null });
+      }
+      set({ snapshot, error: null });
       return true;
     } catch (err) {
       set({ error: err instanceof Error ? err.message : String(err) });
@@ -175,6 +198,23 @@ export const useFirm = create<FirmState>((set, get) => {
     updateConflictCheck: async (id, patch) => {
       await run(() => api.updateConflictCheck(id, patch, get().actor()));
     },
+    settingsOpen: false,
+    setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+    updateSettings: (patch) => run(() => api.updateSettings(patch, get().actor() || null)),
+    saveStaff: (input) => run(() => api.saveStaff(input, get().actor())),
+    setStaffActive: async (id, active) => {
+      await run(() => api.setStaffActive(id, active, get().actor()));
+    },
+    startWithDemo: async () => {
+      await run(() => api.updateSettings({ onboarded: true }, null));
+    },
+    createEmptyFirm: (input) =>
+      run(async () => {
+        const owner = await api.createEmptyFirm(input);
+        pref.set('cf.staff', owner.id);
+        pref.set('cf.timer', null);
+        set({ currentStaffId: owner.id, timer: null, selection: null, settingsOpen: false });
+      }),
     resetDemo: async () => {
       await run(() => api.resetDemoData());
     },

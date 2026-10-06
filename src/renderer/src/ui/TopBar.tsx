@@ -35,7 +35,7 @@ export function TopBar({ derived }: { derived: Derived }) {
   const wip = wipSummary(snapshot.timeEntries);
   const currentStaffId = useFirm((s) => s.currentStaffId);
   const setCurrentStaff = useFirm((s) => s.setCurrentStaff);
-  const resetDemo = useFirm((s) => s.resetDemo);
+  const setSettingsOpen = useFirm((s) => s.setSettingsOpen);
   const criticalTone = kpis.criticalDeadlines > 0 ? ALERT_COLORS.critique : ALERT_COLORS.ok;
 
   return (
@@ -44,7 +44,7 @@ export function TopBar({ derived }: { derived: Derived }) {
         <div className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--color-brand)] text-lg font-black text-white shadow-md">C</div>
         <div>
           <div className="text-sm font-extrabold tracking-tight">CaseForge</div>
-          <div className="max-w-[150px] truncate text-[11px] text-[var(--color-muted)]">{snapshot.firmName}</div>
+          <div className="max-w-[150px] truncate text-[11px] text-[var(--color-muted)]">{snapshot.settings.firmName}</div>
         </div>
       </div>
 
@@ -85,7 +85,7 @@ export function TopBar({ derived }: { derived: Derived }) {
           onChange={(e) => setCurrentStaff(e.target.value)}
           className="h-8 max-w-[130px] rounded-lg bg-transparent px-1 text-xs font-medium outline-none hover:bg-white/80"
         >
-          {snapshot.staff.map((p) => (
+          {derived.activeStaff.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
@@ -110,8 +110,8 @@ export function TopBar({ derived }: { derived: Derived }) {
             <option key={code} value={code}>{code.toUpperCase()} — {name}</option>
           ))}
         </select>
-        <IconButton onClick={() => void resetDemo()} title={t('actions.reset')}>
-          <span className="text-xs">↺</span>
+        <IconButton onClick={() => setSettingsOpen(true)} title={t('actions.settings')}>
+          <Icon.gear />
         </IconButton>
       </div>
     </header>

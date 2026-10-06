@@ -17,6 +17,10 @@ const api: CaseForgeApi = {
   recordConflictCheck: (query, actor, matterId) => ipcRenderer.invoke(IPC.recordConflictCheck, query, actor, matterId ?? null),
   updateConflictCheck: (id, patch, actor) => ipcRenderer.invoke(IPC.updateConflictCheck, id, patch, actor),
   resetDemoData: () => ipcRenderer.invoke(IPC.resetDemoData),
+  updateSettings: (patch, actor) => ipcRenderer.invoke(IPC.updateSettings, patch, actor),
+  saveStaff: (input, actor) => ipcRenderer.invoke(IPC.saveStaff, input, actor),
+  setStaffActive: (id, active, actor) => ipcRenderer.invoke(IPC.setStaffActive, id, active, actor),
+  createEmptyFirm: (input) => ipcRenderer.invoke(IPC.createEmptyFirm, input),
 };
 
 contextBridge.exposeInMainWorld('caseforge', api);

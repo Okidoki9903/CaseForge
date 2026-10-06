@@ -10,6 +10,8 @@ import { DetailPanel } from './ui/DetailPanel';
 import { Legend } from './ui/Legend';
 import { PipelineBar } from './ui/PipelineBar';
 import { TimeDrawer } from './ui/TimeDrawer';
+import { Onboarding } from './ui/Onboarding';
+import { Settings } from './ui/Settings';
 import { TopBar } from './ui/TopBar';
 
 const REFRESH_MS = 60_000;
@@ -53,6 +55,8 @@ export function App() {
         <AlertCenter derived={derived} />
         <TimeDrawer derived={derived} />
         <ConflictSearch derived={derived} />
+        <Settings derived={derived} />
+        <Onboarding derived={derived} />
         {error && (
           <div role="status" className="pointer-events-auto absolute bottom-24 right-3 z-50 rounded-lg bg-[var(--color-critique)] px-3 py-2 text-sm text-white shadow-lg">
             {error}

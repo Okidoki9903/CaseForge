@@ -3,12 +3,13 @@
  */
 import type Database from 'better-sqlite3';
 import type {
-  ConflictCheck, ConflictStatus, FirmSnapshot, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
+  ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, NewFirmInput, Staff, StaffInput, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
 } from '@shared/types';
 import { CONFLICT_STATUSES, PIPELINE_STAGES } from '@shared/types';
 import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
+import { DEFAULT_SETTINGS, emptyFirmSnapshot, normalizeSettingsPatch, normalizeStaffInput } from '@shared/domain/firm';
 import { buildDemoSnapshot } from '@shared/seed';
 import { MIGRATIONS } from './migrations';
 
@@ -47,16 +48,13 @@ export class Repository {
     for (const r of all('SELECT matter_id, staff_id FROM matter_team')) {
       team.set(r.matter_id, [...(team.get(r.matter_id) ?? []), r.staff_id]);
     }
-    const firmName =
-      (this.db.prepare("SELECT value FROM settings WHERE key = 'firm_name'").get() as Row | undefined)?.value ?? 'Mon cabinet';
-
     return {
-      firmName,
+      settings: this.getSettings(),
       practiceAreas: all('SELECT * FROM practice_areas ORDER BY code').map((r) => ({
         id: r.id, code: r.code, name: r.name, color: r.color, gridX: r.grid_x, gridZ: r.grid_z,
       })),
-      staff: all('SELECT * FROM staff WHERE active = 1 ORDER BY name').map((r) => ({
-        id: r.id, name: r.name, initials: r.initials, role: r.role, practiceAreaId: r.practice_area_id,
+      staff: all('SELECT * FROM staff ORDER BY name').map((r) => ({
+        id: r.id, active: r.active === 1, name: r.name, initials: r.initials, role: r.role, practiceAreaId: r.practice_area_id,
         hourlyRateCents: r.hourly_rate_cents, costRateCents: r.cost_rate_cents, targetHoursWeek: r.target_hours_week,
       })),
       parties: all('SELECT * FROM parties').map((r) => ({
@@ -191,8 +189,8 @@ export class Repository {
     if (!description) throw new Error('Description requise.');
     const matter = this.db.prepare('SELECT id FROM matters WHERE id = ?').get(e.matterId);
     if (!matter) throw new Error('Dossier introuvable.');
-    const staff = this.db.prepare('SELECT hourly_rate_cents FROM staff WHERE id = ?').get(e.staffId) as Row | undefined;
-    if (!staff) throw new Error('Collaborateur introuvable.');
+    const staff = this.db.prepare('SELECT hourly_rate_cents FROM staff WHERE id = ? AND active = 1').get(e.staffId) as Row | undefined;
+    if (!staff) throw new Error('Collaborateur introuvable ou inactif.');
     // Construction explicite : aucun champ supplémentaire de l'appelant (id, statut…) n'est repris.
     const entry: TimeEntry = {
       id: `t-${crypto.randomUUID()}`,
@@ -226,21 +224,114 @@ export class Repository {
     })();
   }
 
+  getSettings(): FirmSettings {
+    const kv = new Map((this.db.prepare('SELECT key, value FROM settings').all() as Row[]).map((r) => [r.key, r.value as string]));
+    const json = <T>(key: string, fallback: T): T => {
+      try {
+        return kv.has(key) ? (JSON.parse(kv.get(key)!) as T) : fallback;
+      } catch {
+        return fallback;
+      }
+    };
+    return {
+      firmName: kv.get('firm_name') ?? DEFAULT_SETTINGS.firmName,
+      jurisdictions: json('jurisdictions', DEFAULT_SETTINGS.jurisdictions),
+      defaultRateCents: json('default_rate_cents', DEFAULT_SETTINGS.defaultRateCents),
+      onboarded: kv.get('onboarded') === '1',
+      demo: kv.get('demo') === '1',
+    };
+  }
+
+  private writeSettings(s: Partial<FirmSettings>): void {
+    const put = this.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+    if (s.firmName !== undefined) put.run('firm_name', s.firmName);
+    if (s.jurisdictions !== undefined) put.run('jurisdictions', JSON.stringify(s.jurisdictions));
+    if (s.defaultRateCents !== undefined) put.run('default_rate_cents', JSON.stringify(s.defaultRateCents));
+    if (s.onboarded !== undefined) put.run('onboarded', s.onboarded ? '1' : '0');
+    if (s.demo !== undefined) put.run('demo', s.demo ? '1' : '0');
+  }
+
+  updateSettings(patch: Partial<FirmSettings>, actor: string | null): void {
+    const clean = normalizeSettingsPatch(patch);
+    const who = actor ? normalizeInitials(actor) : 'local';
+    this.db.transaction(() => {
+      this.writeSettings(clean);
+      this.audit(who, 'update_settings', 'settings', 'firm', clean);
+    })();
+  }
+
+  /** Crée ou modifie un collaborateur. Un nouveau taux ne s'applique qu'aux saisies futures. */
+  saveStaff(input: StaffInput, actor: string): Staff {
+    const who = normalizeInitials(actor);
+    const snapshotStaff = this.getSnapshot().staff;
+    const areaIds = (this.db.prepare('SELECT id FROM practice_areas').all() as Row[]).map((r) => r.id as string);
+    const clean = normalizeStaffInput(input, snapshotStaff, areaIds);
+    const existing = input.id ? snapshotStaff.find((p) => p.id === input.id) : undefined;
+    if (input.id && !existing) throw new Error('Collaborateur introuvable.');
+    const staff: Staff = { id: existing?.id ?? `st-${crypto.randomUUID()}`, active: existing?.active ?? true, ...clean };
+    this.db.transaction(() => {
+      if (existing) {
+        this.db
+          .prepare(`UPDATE staff SET name = @name, initials = @initials, role = @role, practice_area_id = @practiceAreaId,
+            hourly_rate_cents = @hourlyRateCents, cost_rate_cents = @costRateCents, target_hours_week = @targetHoursWeek WHERE id = @id`)
+          .run(staff);
+      } else {
+        this.db
+          .prepare(`INSERT INTO staff (id, name, initials, role, practice_area_id, hourly_rate_cents, cost_rate_cents, target_hours_week, active)
+            VALUES (@id, @name, @initials, @role, @practiceAreaId, @hourlyRateCents, @costRateCents, @targetHoursWeek, 1)`)
+          .run(staff);
+      }
+      this.audit(who, existing ? 'update_staff' : 'create_staff', 'staff', staff.id, existing
+        ? { from: { rate: existing.hourlyRateCents, initials: existing.initials }, to: { rate: staff.hourlyRateCents, initials: staff.initials } }
+        : { name: staff.name });
+    })();
+    return staff;
+  }
+
+  /** Désactive (départ) ou réactive un collaborateur ; le dernier collaborateur actif ne peut être désactivé. */
+  setStaffActive(id: Id, active: boolean, actor: string): void {
+    const who = normalizeInitials(actor);
+    this.db.transaction(() => {
+      const row = this.db.prepare('SELECT active FROM staff WHERE id = ?').get(id) as Row | undefined;
+      if (!row) throw new Error('Collaborateur introuvable.');
+      if (!active) {
+        const others = (this.db.prepare('SELECT COUNT(*) n FROM staff WHERE active = 1 AND id <> ?').get(id) as Row).n;
+        if (others === 0) throw new Error('Le cabinet doit conserver au moins un collaborateur actif.');
+      }
+      this.db.prepare('UPDATE staff SET active = ? WHERE id = ?').run(active ? 1 : 0, id);
+      this.audit(who, active ? 'activate_staff' : 'deactivate_staff', 'staff', id);
+    })();
+  }
+
   /** Remplace toutes les données par le jeu de démonstration. */
-  seed(today: string): void {
+  seed(today: string, options: { onboarded?: boolean } = {}): void {
     const s = buildDemoSnapshot(today);
+    s.settings.onboarded = options.onboarded ?? false;
+    this.replaceAll(s);
+  }
+
+  /** Remplace toutes les données par un cabinet vide (pôles par défaut + premier collaborateur). */
+  createEmptyFirm(input: NewFirmInput): Staff {
+    const s = emptyFirmSnapshot(input);
+    this.replaceAll(s);
+    this.audit(s.staff[0].initials, 'create_firm', 'settings', 'firm', { firmName: s.settings.firmName });
+    return s.staff[0];
+  }
+
+  /** Remplace toutes les données, dans une seule transaction (tout ou rien). */
+  private replaceAll(s: FirmSnapshot): void {
     this.db.transaction(() => {
       for (const t of ['audit_log', 'conflict_checks', 'documents', 'invoices', 'time_entries', 'deadlines',
         'matter_parties', 'matter_team', 'matters', 'parties', 'staff', 'practice_areas', 'settings']) {
         this.db.prepare(`DELETE FROM ${t}`).run();
       }
       const ins = (sql: string) => this.db.prepare(sql);
-      ins("INSERT INTO settings (key, value) VALUES ('firm_name', ?)").run(s.firmName);
+      this.writeSettings(s.settings);
       const pa = ins('INSERT INTO practice_areas VALUES (@id, @code, @name, @color, @gridX, @gridZ)');
       s.practiceAreas.forEach((r) => pa.run(r));
-      const st = ins(`INSERT INTO staff (id, name, initials, role, practice_area_id, hourly_rate_cents, cost_rate_cents, target_hours_week)
-        VALUES (@id, @name, @initials, @role, @practiceAreaId, @hourlyRateCents, @costRateCents, @targetHoursWeek)`);
-      s.staff.forEach((r) => st.run(r));
+      const st = ins(`INSERT INTO staff (id, name, initials, role, practice_area_id, hourly_rate_cents, cost_rate_cents, target_hours_week, active)
+        VALUES (@id, @name, @initials, @role, @practiceAreaId, @hourlyRateCents, @costRateCents, @targetHoursWeek, @active)`);
+      s.staff.forEach((r) => st.run({ ...r, active: r.active ? 1 : 0 }));
       const p = ins('INSERT INTO parties VALUES (?, ?, ?, ?)');
       s.parties.forEach((r) => p.run(r.id, r.name, r.kind, JSON.stringify(r.aliases)));
       const m = ins(`INSERT INTO matters VALUES (@id, @number, @title, @clientId, @practiceAreaId, @responsibleId, @stage,

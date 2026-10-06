@@ -52,6 +52,8 @@ export interface PracticeArea {
 /** Collaborateur = unité assignable. */
 export interface Staff {
   id: Id;
+  /** Un collaborateur parti est désactivé (jamais supprimé : ses entrées de temps restent). */
+  active: boolean;
   name: string;
   initials: string;
   role: StaffRole;
@@ -188,9 +190,42 @@ export interface AuditEntry {
   details: Record<string, unknown>;
 }
 
+/** Paramètres du cabinet (table `settings`, clé/valeur). */
+export interface FirmSettings {
+  firmName: string;
+  /** Ressorts dans lesquels le cabinet pratique (calendriers et délais proposés en priorité). */
+  jurisdictions: Jurisdiction[];
+  /** Taux horaire proposé par défaut pour un nouveau collaborateur. */
+  defaultRateCents: number;
+  /** L'écran d'accueil a été parcouru. */
+  onboarded: boolean;
+  /** Les données actuelles sont le cabinet de démonstration (fictif). */
+  demo: boolean;
+}
+
+/** Saisie d'un collaborateur (création ou modification). */
+export interface StaffInput {
+  id?: Id;
+  name: string;
+  initials: string;
+  role: StaffRole;
+  practiceAreaId: Id;
+  hourlyRateCents: number;
+  targetHoursWeek: number;
+  costRateCents?: number;
+}
+
+/** Création d'un cabinet vide. */
+export interface NewFirmInput {
+  firmName: string;
+  jurisdictions: Jurisdiction[];
+  defaultRateCents: number;
+  owner: Omit<StaffInput, 'id' | 'practiceAreaId'>;
+}
+
 /** Instantané complet des données : un cabinet de taille petite/moyenne tient en mémoire. */
 export interface FirmSnapshot {
-  firmName: string;
+  settings: FirmSettings;
   practiceAreas: PracticeArea[];
   staff: Staff[];
   parties: Party[];

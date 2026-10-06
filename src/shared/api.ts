@@ -6,7 +6,7 @@
  *  - Mode démo navigateur : IndexedDB.
  */
 import type {
-  ConflictCheck, ConflictStatus, FirmSnapshot, Id, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
+  ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, NewFirmInput, Staff, StaffInput, Id, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
 } from './types';
 
 export interface CaseForgeApi {
@@ -35,7 +35,15 @@ export interface CaseForgeApi {
   recordConflictCheck(query: string, actor: string, matterId?: Id | null): Promise<ConflictCheck>;
   /** Change le statut et/ou le dossier visé d'une vérification ; journalisé. */
   updateConflictCheck(id: Id, patch: { status?: ConflictStatus; matterId?: Id | null }, actor: string): Promise<void>;
-  /** Remet les données de démonstration à zéro. */
+  /** Met à jour les paramètres du cabinet (nom, ressorts, taux par défaut, accueil terminé). */
+  updateSettings(patch: Partial<FirmSettings>, actor: string | null): Promise<void>;
+  /** Crée ou modifie un collaborateur ; un nouveau taux ne vaut que pour les saisies futures. */
+  saveStaff(input: StaffInput, actor: string): Promise<Staff>;
+  /** Désactive (départ) ou réactive un collaborateur. */
+  setStaffActive(staffId: Id, active: boolean, actor: string): Promise<void>;
+  /** Remplace toutes les données par un cabinet vide ; retourne le premier collaborateur. */
+  createEmptyFirm(input: NewFirmInput): Promise<Staff>;
+  /** Remplace toutes les données par le cabinet de démonstration (fictif). */
   resetDemoData(): Promise<void>;
 }
 
@@ -51,4 +59,8 @@ export const IPC = {
   recordConflictCheck: 'cf:recordConflictCheck',
   updateConflictCheck: 'cf:updateConflictCheck',
   resetDemoData: 'cf:resetDemoData',
+  updateSettings: 'cf:updateSettings',
+  saveStaff: 'cf:saveStaff',
+  setStaffActive: 'cf:setStaffActive',
+  createEmptyFirm: 'cf:createEmptyFirm',
 } as const;
