@@ -162,13 +162,19 @@ docs/
 
 ## 4. Le premier écran
 
-- **Campus isométrique** (caméra orthographique, angle isométrique vrai de 54,7°) : glisser pour se déplacer, clic droit pour pivoter, molette pour zoomer.
-- **Bâtiments** : un par pôle. La hauteur suit le nombre de dossiers actifs, un gyrophare sur le toit indique l'alerte la plus grave du pôle, et une étiquette affiche le compteur d'alertes.
+- **Barre d'indicateurs, l'argent d'abord** : le **WIP non facturé** en $ est le chiffre le plus visible (avec ce qui a été ajouté cette semaine et une courbe sur 8 semaines). Viennent ensuite les heures facturables du mois, avec leur tendance par rapport au mois précédent, les échéances critiques à accuser et la date du jour.
+- **Campus en vue « maquette d'architecte »** (caméra perspective, vue plongeante fixe) : glisser pour se déplacer, clic droit pour pivoter, molette pour zoomer. L'éclairage est doux et chaud, avec ombres douces, occlusion ambiante et léger halo. L'environnement de reflets est **généré localement** (aucune image HDR téléchargée). Les effets se coupent d'eux-mêmes si la machine peine.
+- **Bâtiments** : un par pôle, en architecture contemporaine (socle en béton clair, murs-rideaux vitrés, ailettes, fenêtres éclairées, toits végétalisés, auvent au liseré de la couleur du pôle). La hauteur suit le nombre de dossiers actifs. Un halo pulsé au pied du bâtiment signale une alerte grave. L'étiquette en carte affiche le pictogramme, le nombre de dossiers et de personnes, et le compteur d'alertes.
 - **Quai de pipeline** devant chaque bâtiment : 8 plateformes colorées. Chaque dossier est un « colis » posé sur l'étape où il se trouve, et il glisse en animation quand l'étape change.
 - **Collaborateurs** : ils circulent entre leur bureau et leurs dossiers. L'anneau au sol indique la charge (vert, ambre ou rouge), et 🔥 signale une surcharge.
-- **Nœuds externes** : les tribunaux (palais de justice) à l'est, les clients (pylônes bleus) à l'ouest et les parties adverses (prismes rouges) au nord. La sélection d'un élément trace des arcs animés vers ses liens.
-- **Panneau contextuel** au clic : pour un dossier, il affiche les étapes, les échéances avec actions, le chronomètre, la rentabilité, l'équipe et les pièces. Il existe aussi pour un pôle, un collaborateur et un tribunal ou une partie. La caméra se recentre sur la sélection.
-- **Barre d'indicateurs** : dossiers actifs, échéances critiques, heures facturables du mois, travaux en cours (WIP), taux de réalisation et de recouvrement.
+- **Nœuds externes** : les tribunaux (palais de justice néoclassiques) à l'est, les clients (pylônes bleus) à l'ouest et les parties adverses (prismes rouges) au nord. La sélection d'un élément trace des arcs animés vers ses liens.
+- **Panneau contextuel** (carte flottante à droite) au clic. Pour un dossier, il comporte quatre onglets :
+  - **Aperçu** : client, responsable, statut, prochaine échéance avec compte à rebours, et argent du dossier (WIP restant à facturer, temps consigné et sa valeur, facturé, encaissé, marge, budget). Deux boutons : « Consigner du temps » et « Ajouter une échéance ».
+  - **Tâches** : étapes et échéances.
+  - **Temps** : chronomètre et saisies.
+  - **Documents**.
+
+  Le panneau existe aussi pour un pôle, un collaborateur et un tribunal ou une partie. La caméra se recentre sur la sélection.
 - **Barre de pipeline** : nombre de dossiers par étape, avec filtrage sur la carte.
 
 | Accusé de réception | Temps (mode focus) | Conflits (Ctrl+K) |

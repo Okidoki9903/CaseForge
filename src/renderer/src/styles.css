@@ -7,12 +7,20 @@
   --color-muted: #5b6b82;
   --color-line: #dbe3ee;
   --color-panel: rgb(255 255 255 / 0.86);
-  --color-brand: #3b5bdb;
+  --color-brand: #3a4fd8;
+  --color-indigo: #5b4fe0;
+  --color-violet: #7c5cf0;
+  --color-money: #3a4fd8;
   --color-depasse: #b4161b;
   --color-critique: #e5484d;
   --color-urgent: #f76b15;
   --color-attention: #f5b100;
   --color-ok: #2f9e6e;
+}
+
+:root {
+  /* Hauteur de la barre du haut : bannière et panneaux se placent dessous. */
+  --hud-top: 204px;
 }
 
 html, body, #root {
@@ -23,6 +31,13 @@ html, body, #root {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+.card {
+  background: rgb(255 255 255 / 0.94);
+  backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid rgb(255 255 255 / 0.9);
+  box-shadow: 0 1px 2px rgb(15 27 45 / 0.04), 0 12px 32px -14px rgb(30 41 80 / 0.28);
 }
 
 .glass {

@@ -19,7 +19,7 @@ export function AlertCenter({ derived }: { derived: Derived }) {
   const alerts = filter === 'critical' ? critical : derived.alerts;
 
   return (
-    <aside className="glass animate-panel pointer-events-auto absolute bottom-3 right-3 top-[86px] z-40 flex w-[420px] flex-col overflow-hidden rounded-2xl">
+    <aside className="glass animate-panel pointer-events-auto absolute bottom-3 right-3 top-[var(--hud-top)] z-40 flex w-[420px] flex-col overflow-hidden rounded-2xl">
       <header className="flex items-start justify-between px-4 pb-2 pt-3">
         <div>
           <h2 className="text-base font-bold">{t('alerts.title')}</h2>

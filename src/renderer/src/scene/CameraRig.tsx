@@ -21,8 +21,8 @@ export function CameraRig({ layout }: { layout: CampusLayout }) {
       : selection.kind === 'area' ? layout.areas.get(selection.id)?.center
       : selection.kind === 'party' ? layout.parties.get(selection.id)
       : null; // les collaborateurs se déplacent : pas de recentrage
-    // Décalage pour laisser la place au panneau de détail à gauche.
-    goal.current = p ? new Vector3(p[0] - 4, 0, p[2] + 4) : null;
+    // Décalage vers la droite de l'écran pour laisser la place au panneau de détail.
+    goal.current = p ? new Vector3(p[0] + 4.5, 0, p[2] - 4) : null;
   }, [selection, layout]);
 
   useFrame((_, dt) => {
