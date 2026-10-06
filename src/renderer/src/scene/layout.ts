@@ -21,6 +21,8 @@ export interface CampusLayout {
   areas: Map<Id, { center: Vec3; door: Vec3; height: number }>;
   pads: Map<string, Vec3>;
   matters: Map<Id, Vec3>;
+  /** Rang du dossier dans la pile de sa plateforme (0 = devant) : sert à étager les étiquettes. */
+  stack: Map<Id, number>;
   parties: Map<Id, Vec3>;
   bounds: number;
 }
@@ -33,6 +35,7 @@ export function computeLayout(s: FirmSnapshot): CampusLayout {
   const areas = new Map<Id, { center: Vec3; door: Vec3; height: number }>();
   const pads = new Map<string, Vec3>();
   const matters = new Map<Id, Vec3>();
+  const stack = new Map<Id, number>();
 
   for (const area of s.practiceAreas) {
     const cx = area.gridX * CAMPUS_SPACING;
@@ -47,7 +50,10 @@ export function computeLayout(s: FirmSnapshot): CampusLayout {
       pads.set(padKey(area.id, i), [px, 0, pz]);
       active
         .filter((m) => m.stage === stage)
-        .forEach((m, k) => matters.set(m.id, [px, 0, pz + 0.95 + k * 0.85]));
+        .forEach((m, k) => {
+          matters.set(m.id, [px, 0, pz + 0.95 + k * 0.85]);
+          stack.set(m.id, k);
+        });
     });
   }
 
@@ -64,5 +70,5 @@ export function computeLayout(s: FirmSnapshot): CampusLayout {
   ring(linked.filter((p) => roleOf(p.id) === 'client').map((p) => p.id), 'x', -2.3 * CAMPUS_SPACING, 3.4 * CAMPUS_SPACING);
   ring(linked.filter((p) => p.kind !== 'tribunal' && roleOf(p.id) !== 'client').map((p) => p.id), 'z', -2.2 * CAMPUS_SPACING, 3.4 * CAMPUS_SPACING);
 
-  return { areas, pads, matters, parties, bounds: 3 * CAMPUS_SPACING };
+  return { areas, pads, matters, stack, parties, bounds: 3 * CAMPUS_SPACING };
 }

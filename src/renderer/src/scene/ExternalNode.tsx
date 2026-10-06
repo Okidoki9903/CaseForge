@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Html } from '@react-three/drei';
+import { MapLabel } from './MapLabel';
 import type { Party, PartyRole } from '@shared/types';
 import { useFirm } from '../store/useFirm';
 import { SCENE_COLORS } from './palette';
@@ -49,9 +49,9 @@ export function ExternalNode({ party, role, position }: { party: Party; role: Pa
         </mesh>
       )}
       {(isCourt || hovered || selected) && (
-        <Html position={[0, isCourt ? 3.2 : 1.8, 0]} center zIndexRange={[20, 0]}>
+        <MapLabel position={[0, isCourt ? 3.2 : 1.8, 0]}>
           <div className="map-label" style={{ borderLeft: `3px solid ${color}` }}>{party.name}</div>
-        </Html>
+        </MapLabel>
       )}
     </group>
   );

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, RoundedBox } from '@react-three/drei';
+import { RoundedBox } from '@react-three/drei';
+import { MapLabel } from './MapLabel';
 import { AdditiveBlending, type Group, type Mesh, type MeshBasicMaterial, Vector3 } from 'three';
 import { useTranslation } from 'react-i18next';
 import type { ConflictStatus, Matter } from '@shared/types';
@@ -17,6 +18,10 @@ interface Props {
   nextAlert: DeadlineAlert | undefined;
   /** Vérification de conflits non résolue visant ce dossier. */
   conflict?: ConflictStatus;
+  /** Rang dans la pile de la plateforme : les étiquettes sont étagées pour ne pas se chevaucher. */
+  stackIndex?: number;
+  /** Dossier le plus urgent de son pôle : seul à afficher son étiquette en vue d'ensemble. */
+  featured?: boolean;
 }
 
 const CONFLICT_COLOR = { potentiel: '#8e4ec6', confirme: '#6b21a8' } as const;
@@ -27,7 +32,7 @@ const tmp = new Vector3();
  * Un dossier = une unité sur le quai de son pôle.
  * Il glisse vers la plateforme de son étape quand celle-ci change.
  */
-export function MatterUnit({ matter, color, target, level, nextAlert, conflict }: Props) {
+export function MatterUnit({ matter, color, target, level, nextAlert, conflict, stackIndex = 0, featured = false }: Props) {
   const { t } = useTranslation();
   const group = useRef<Group>(null);
   const select = useFirm((s) => s.select);
@@ -42,7 +47,10 @@ export function MatterUnit({ matter, color, target, level, nextAlert, conflict }
   const unacknowledged = nextAlert?.requiresAcknowledgement ?? false;
   const conflictOpen = conflict === 'potentiel' || conflict === 'confirme';
   const showCountdown = Boolean(nextAlert) && (alarming || level === 'urgent');
-  const showLabel = !dimmed && (showCountdown || conflictOpen || hovered || selected);
+  // Mode focus : seules les étiquettes du dossier sélectionné restent (plus aucun chevauchement).
+  // Vue d'ensemble : une seule étiquette par pôle (le dossier le plus urgent) ; les autres au survol.
+  // Mode focus : seules les étiquettes du dossier sélectionné restent.
+  const showLabel = !dimmed && (selected || hovered || (!unfocused && featured && (showCountdown || conflictOpen)));
 
   useFrame(({ clock }, dt) => {
     const g = group.current;
@@ -120,7 +128,7 @@ export function MatterUnit({ matter, color, target, level, nextAlert, conflict }
       )}
 
       {showLabel && (
-        <Html position={[0, 1.05, 0]} center zIndexRange={[20, 0]}>
+        <MapLabel position={[0, 1.05 + (selected || hovered ? 0.3 : stackIndex * 0.6), 0]}>
           <div className="pointer-events-none flex items-center gap-1 whitespace-nowrap">
             {conflictOpen && (
               <span className="map-label" style={{ background: CONFLICT_COLOR[conflict as keyof typeof CONFLICT_COLOR], color: '#fff' }} title={t(`conflicts.status.${conflict}`)}>
@@ -138,7 +146,7 @@ export function MatterUnit({ matter, color, target, level, nextAlert, conflict }
               </span>
             )}
           </div>
-        </Html>
+        </MapLabel>
       )}
     </group>
   );

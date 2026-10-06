@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { MapLabel } from './MapLabel';
 import { type Group, Vector3 } from 'three';
 import type { Staff } from '@shared/types';
 import type { StaffLoad } from '@shared/domain/metrics';
@@ -88,12 +88,12 @@ export function StaffUnit({ staff, load, waypoints }: Props) {
         <sphereGeometry args={[0.13, 16, 12]} />
         <meshStandardMaterial color="#f1d3b6" />
       </mesh>
-      {(hovered || selected || load.level === 'surcharge') && (
-        <Html position={[0, 1, 0]} center zIndexRange={[20, 0]}>
+      {(hovered || selected) && (
+        <MapLabel position={[0, 1, 0]}>
           <div className="map-label" style={load.level === 'surcharge' ? { color: LOAD_COLORS.surcharge } : undefined}>
-            {hovered || selected ? staff.name : `${staff.initials} 🔥`}
+            {staff.name}
           </div>
-        </Html>
+        </MapLabel>
       )}
     </group>
   );

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, RoundedBox } from '@react-three/drei';
+import { RoundedBox } from '@react-three/drei';
+import { MapLabel } from './MapLabel';
 import type { Mesh, MeshStandardMaterial } from 'three';
 import { PIPELINE_STAGES, type PracticeArea } from '@shared/types';
 import type { AreaStats } from '@shared/domain/metrics';
@@ -13,10 +14,12 @@ interface Props {
   area: PracticeArea;
   stats: AreaStats;
   layout: CampusLayout;
+  /** Initiales des collaborateurs du pôle en surcharge. */
+  overloaded?: string[];
 }
 
 /** Bâtiment d'un pôle + son quai de pipeline. */
-export function Building({ area, stats, layout }: Props) {
+export function Building({ area, stats, layout, overloaded = [] }: Props) {
   const { t } = useTranslation();
   const select = useFirm((s) => s.select);
   const hover = useFirm((s) => s.hover);
@@ -91,7 +94,7 @@ export function Building({ area, stats, layout }: Props) {
           <sphereGeometry args={[0.32, 24, 16]} />
           <meshStandardMaterial color={ALERT_COLORS[stats.worst]} emissive={ALERT_COLORS[stats.worst]} />
         </mesh>
-        <Html position={[0, height + 1.5, 0]} center zIndexRange={[20, 0]}>
+        <MapLabel position={[0, height + 1.5, 0]}>
           <div className="map-label flex items-center gap-1.5" style={{ borderTop: `3px solid ${area.color}` }}>
             <span style={{ color: area.color }}>{area.code}</span>
             <span className="font-medium text-[var(--color-muted)]">{area.name}</span>
@@ -100,8 +103,13 @@ export function Building({ area, stats, layout }: Props) {
                 {stats.alertCount}
               </span>
             )}
+            {overloaded.length > 0 && (
+              <span className="rounded-full bg-red-50 px-1.5 text-[10px] text-[var(--color-critique)]" title="Surcharge">
+                🔥 {overloaded.join(' ')}
+              </span>
+            )}
           </div>
-        </Html>
+        </MapLabel>
       </group>
 
       {/* Quai de pipeline : une plateforme par étape */}
@@ -119,11 +127,11 @@ export function Building({ area, stats, layout }: Props) {
               <meshStandardMaterial color={STAGE_COLORS[i]} transparent opacity={dim ? 0.25 : 0.9} />
             </mesh>
             {showStages && (
-              <Html position={[0, 0.1, 0.55]} center zIndexRange={[20, 0]}>
+              <MapLabel position={[0, 0.1, 0.55]}>
                 <div className="pointer-events-none -rotate-12 text-[9px] font-semibold text-[var(--color-muted)]">
                   {t(`stage.${stage}`)}
                 </div>
-              </Html>
+              </MapLabel>
             )}
           </group>
         );
