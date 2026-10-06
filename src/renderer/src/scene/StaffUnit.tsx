@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MapLabel } from './MapLabel';
 import { type Group, Vector3 } from 'three';
@@ -6,20 +6,25 @@ import type { Staff } from '@shared/types';
 import type { StaffLoad } from '@shared/domain/metrics';
 import { useFirm } from '../store/useFirm';
 import { LOAD_COLORS, ROLE_COLORS, SCENE_COLORS } from './palette';
-import type { Vec3 } from './layout';
+import type { RouteStop } from './staffNavigation';
+import { StaffTraffic } from './StaffTraffic';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   staff: Staff;
   load: StaffLoad;
   /** Points de passage : porte du pôle puis dossiers assignés. */
-  waypoints: Vec3[];
+  route: RouteStop[];
+  center: [number, number, number];
+  interiorVisible: boolean;
+  seat: number;
 }
 
 const SPEED = 1.8;
-const PAUSE = 1.8;
+
 
 /** Collaborateur : unité qui circule entre son bureau et ses dossiers. */
-export function StaffUnit({ staff, load, waypoints }: Props) {
+export function StaffUnit({ staff, load, route, center, interiorVisible, seat }: Props) {
   const group = useRef<Group>(null);
   const leftLeg = useRef<Group>(null);
   const rightLeg = useRef<Group>(null);
@@ -31,48 +36,57 @@ export function StaffUnit({ staff, load, waypoints }: Props) {
   const select = useFirm((s) => s.select);
   const selected = useFirm((s) => s.selection?.kind === 'staff' && s.selection.id === staff.id);
   const [hovered, setHovered] = useState(false);
-  // Décalage latéral propre à chaque personne pour éviter les superpositions.
-  const offset = useMemo(() => {
-    const h = [...staff.id].reduce((a, c) => a + c.charCodeAt(0), 0);
-    return new Vector3(Math.cos(h) * 0.55, 0, Math.sin(h) * 0.55);
-  }, [staff.id]);
-  const state = useRef({ index: 0, wait: Math.random() * PAUSE });
+  const traffic = useContext(StaffTraffic);
+  const { i18n } = useTranslation();
+  const en = i18n.language.startsWith('en');
+  const [activity, setActivity] = useState('working');
+  const state = useRef({ index: 0, wait: -1, activity: 'working' });
   const dest = useMemo(() => new Vector3(), []);
+  const direction = useMemo(() => new Vector3(), []);
+  useEffect(() => {
+    state.current = { index: 0, wait: -1, activity: 'working' };
+    if (group.current && route[0]) group.current.position.set(...route[0].position);
+  }, [route]);
+  useEffect(() => () => { traffic.delete(staff.id); }, [staff.id, traffic]);
 
   useFrame(({ clock }, dt) => {
     const g = group.current;
-    if (!g || waypoints.length === 0) return;
+    if (!g || !route.length) return;
     const st = state.current;
-    const wp = waypoints[st.index % waypoints.length];
-    dest.set(wp[0], 0.25, wp[2]).add(offset);
-    const dist = g.position.distanceTo(dest);
-    const stride = dist > 0.05 ? Math.sin(clock.elapsedTime * 9 + seed) * 0.5 : Math.sin(clock.elapsedTime * 1.8 + seed) * 0.035;
-    if (leftLeg.current) leftLeg.current.rotation.x = stride;
-    if (rightLeg.current) rightLeg.current.rotation.x = -stride;
-    if (leftArm.current) leftArm.current.rotation.x = -stride * 0.65;
-    if (rightArm.current) rightArm.current.rotation.x = stride * 0.65;
-    if (dist < 0.05) {
-      st.wait -= dt;
-      if (st.wait <= 0) {
-        st.index = (st.index + 1) % waypoints.length;
-        st.wait = PAUSE;
-      }
-      g.position.y = 0.25;
+    const stop = route[st.index % route.length];
+    dest.set(...stop.position);
+    direction.copy(dest).sub(g.position);
+    const dist = direction.length();
+    const moving = dist > 0.025;
+    const nextActivity = moving ? 'walking' : stop.activity;
+    if (nextActivity !== st.activity) { st.activity = nextActivity; setActivity(nextActivity); }
+    const inside = Math.abs(g.position.x - center[0]) < 2.1 && g.position.z < center[2] + 2.05 && g.position.z > center[2] - 2.1;
+    g.visible = !inside || interiorVisible;
+    traffic.set(staff.id, { areaId: staff.practiceAreaId, position: g.position, activity: nextActivity });
+    const stride = moving ? Math.sin(clock.elapsedTime * 9 + seed) * 0.45 : 0;
+    if (leftLeg.current) leftLeg.current.rotation.x = nextActivity === 'working' && seat % 3 !== 2 ? -1.2 : stride;
+    if (rightLeg.current) rightLeg.current.rotation.x = nextActivity === 'working' && seat % 3 !== 2 ? -1.2 : -stride;
+    const typing = Math.sin(clock.elapsedTime * 5 + seed) * 0.07;
+    if (leftArm.current) leftArm.current.rotation.x = nextActivity === 'working' ? -0.8 + typing : -stride * 0.65;
+    if (rightArm.current) rightArm.current.rotation.x = nextActivity === 'working' ? -0.8 - typing : stride * 0.65;
+    if (moving) {
+      g.position.addScaledVector(direction.normalize(), Math.min(dist, SPEED * Math.min(dt, 0.1)));
+      g.rotation.y = Math.atan2(direction.x, direction.z);
+      st.wait = -1;
     } else {
-      const step = Math.min(dist, SPEED * dt);
-      const dir = dest.clone().sub(g.position).normalize();
-      g.position.addScaledVector(dir, step);
-      g.rotation.y = Math.atan2(dir.x, dir.z);
-      // Petit rebond de marche
-      g.position.y = 0.25 + Math.abs(Math.sin(clock.elapsedTime * 10)) * 0.05;
+      g.position.copy(dest);
+      if (stop.facing !== undefined) g.rotation.y = stop.facing;
+      if (st.wait < 0) st.wait = stop.wait;
+      st.wait -= Math.min(dt, 0.1);
+      if (st.wait <= 0 && route.length > 1) { st.index = (st.index + 1) % route.length; st.wait = -1; }
     }
   });
 
-  const start = waypoints[0] ?? [0, 0, 0];
+  const start = route[0]?.position ?? center;
   return (
     <group
       ref={group}
-      position={[start[0] + offset.x, 0.25, start[2] + offset.z]}
+      position={start}
       onClick={(e) => {
         e.stopPropagation();
         select({ kind: 'staff', id: staff.id });
@@ -103,7 +117,7 @@ export function StaffUnit({ staff, load, waypoints }: Props) {
         {[[-0.2, leftArm], [0.2, rightArm]].map(([x, ref], i) => <group key={i} ref={ref as typeof leftArm} position={[x as number, 0.57, 0]}>
           <mesh position-y={-0.12} castShadow><capsuleGeometry args={[0.055, 0.18, 4, 8]} /><meshStandardMaterial color={ROLE_COLORS[staff.role]} /></mesh>
           <mesh position-y={-0.26}><sphereGeometry args={[0.057, 8, 8]} /><meshStandardMaterial color={skin} /></mesh>
-          {i === 1 && <group position={[0, -0.36, 0]}>
+          {i === 1 && activity !== 'working' && <group position={[0, -0.36, 0]}>
             <mesh castShadow><boxGeometry args={[0.09, 0.2, 0.26]} /><meshStandardMaterial color="#76513a" /></mesh>
             <mesh position-y={0.12}><torusGeometry args={[0.04, 0.01, 4, 8]} /><meshStandardMaterial color="#c3a577" /></mesh>
           </group>}
@@ -115,7 +129,7 @@ export function StaffUnit({ staff, load, waypoints }: Props) {
       {(hovered || selected) && (
         <MapLabel position={[0, 1, 0]}>
           <div className="map-label" style={load.level === 'surcharge' ? { color: LOAD_COLORS.surcharge } : undefined}>
-            {staff.name}
+            {staff.name}<span className="block text-[10px] font-normal">{activity === 'working' ? (en ? 'Working at the office' : 'Travaille au bureau') : activity === 'collecting' ? (en ? 'Collecting a file' : 'Récupère un dossier') : (en ? 'On assignment' : 'En déplacement')}</span>
           </div>
         </MapLabel>
       )}

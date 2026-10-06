@@ -40,7 +40,7 @@ export function CampusLife({ layout }: { layout: CampusLayout }) {
     {[...layout.areas.entries()].map(([id, { center: [x, , z] }]) => <group key={id} position={[x, 0, z]}>
       {[-1, 1].map(side => <group key={side}>
         <group position={[side * 3.4, 0.15, 0.8]} rotation-y={side * Math.PI / 2}><Bench /></group>
-        <group position={[side * 4.5, 0.15, 2.7]}><Lamp /></group>
+        <group position={[side * 4.5, 0.15, 1.85]}><Lamp /></group>
         <mesh position={[side * 3.5, 0.3, -2.7]} castShadow receiveShadow><boxGeometry args={[1.6, 0.4, 0.6]} /><meshStandardMaterial color="#b6a68e" /></mesh>
         {[0, 1, 2, 3].map(i => <mesh key={i} position={[side * 3.5 - 0.6 + i * 0.4, 0.65, -2.7]} castShadow><icosahedronGeometry args={[0.28, 1]} /><meshStandardMaterial color={i % 2 ? '#71905d' : '#587a50'} /></mesh>)}
       </group>)}

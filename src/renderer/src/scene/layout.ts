@@ -51,7 +51,7 @@ export function computeLayout(s: FirmSnapshot): CampusLayout {
       active
         .filter((m) => m.stage === stage)
         .forEach((m, k) => {
-          matters.set(m.id, [px, 0, pz + 0.95 + k * 0.85]);
+          matters.set(m.id, [px, 0, pz + 0.95 + k * 1.4]);
           stack.set(m.id, k);
         });
     });

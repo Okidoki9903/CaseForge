@@ -15,6 +15,7 @@ import { ALERT_COLORS, SCENE_COLORS, STAGE_COLORS } from './palette';
 import { BUILDING_SIZE, PAD_GAP, padKey, type CampusLayout } from './layout';
 import { MapLabel } from './MapLabel';
 import { OfficeInterior } from './OfficeInterior';
+import { OfficeDoor } from './OfficeDoor';
 
 interface Props {
   area: PracticeArea;
@@ -27,6 +28,7 @@ interface Props {
   /** Variante architecturale (proportions, toit). */
   variant?: number;
   cutaway?: boolean;
+  onEnter: () => void;
 }
 
 const FLOOR_H = 0.62;
@@ -229,9 +231,8 @@ function ModernBuilding({ height, accent, variant, alarmColor }: { height: numbe
 }
 
 /** Bâtiment d'un pôle + son quai de pipeline. */
-export function Building({ area, stats, layout, overloaded = [], staffCount = 0, variant = 0, cutaway = false }: Props) {
+export function Building({ area, stats, layout, overloaded = [], staffCount = 0, variant = 0, cutaway = false, onEnter }: Props) {
   const { t } = useTranslation();
-  const select = useFirm((s) => s.select);
   const hover = useFirm((s) => s.hover);
   const selected = useFirm((s) => s.selection?.kind === 'area' && s.selection.id === area.id);
   const stageFilter = useFirm((s) => s.stageFilter);
@@ -256,7 +257,7 @@ export function Building({ area, stats, layout, overloaded = [], staffCount = 0,
         position={[cx, 0.12, cz]}
         onClick={(e) => {
           e.stopPropagation();
-          select({ kind: 'area', id: area.id });
+          onEnter();
         }}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -270,10 +271,11 @@ export function Building({ area, stats, layout, overloaded = [], staffCount = 0,
           document.body.style.cursor = '';
         }}
       >
-        <group scale={cutaway ? 1.35 : 1}>
-          {cutaway ? <OfficeInterior accent={accent} /> : <ModernBuilding height={towerH} accent={accent} variant={variant} alarmColor={alarming ? ALERT_COLORS[stats.worst] : null} />}
+        <group>
+          {cutaway ? <OfficeInterior accent={accent} code={area.code} /> : <ModernBuilding height={towerH} accent={accent} variant={variant} alarmColor={alarming ? ALERT_COLORS[stats.worst] : null} />}
         </group>
-        <MapLabel position={[0, towerH + 1.6, 0]}>
+        <OfficeDoor center={center} />
+        <MapLabel position={[0, cutaway ? 2.6 : towerH + 1.6, 0]}>
           <div
             className={`flex items-center gap-2.5 rounded-2xl bg-white/95 py-1.5 pl-1.5 pr-3 shadow-[0_10px_28px_-12px_rgba(30,41,80,0.45)] ring-1 transition ${
               selected || hovered ? 'ring-[#3a4fd8]/40' : 'ring-white'
