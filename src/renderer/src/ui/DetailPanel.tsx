@@ -1,7 +1,7 @@
 /**
  * Panneau contextuel : s'ouvre au clic sur un dossier, un pôle, un collaborateur ou un nœud externe.
  */
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PIPELINE_STAGES, type Matter, type Party, type PracticeArea, type Staff } from '@shared/types';
 import { ALERT_COLORS } from '@shared/domain/alerts';
@@ -12,6 +12,7 @@ import { useFirm } from '../store/useFirm';
 import { hours, money, percent } from '../lib/format';
 import { LOAD_COLORS, ROLE_COLORS, STAGE_COLORS } from '../scene/palette';
 import { AlertCard } from './AlertCenter';
+import { TimePanel } from './TimePanel';
 import { Bar, Icon, IconButton, LevelBadge, Section, Stat } from './primitives';
 
 export function DetailPanel({ derived }: { derived: Derived }) {
@@ -65,10 +66,6 @@ function Header({ eyebrow, title, color, children }: { eyebrow: string; title: s
 function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived }) {
   const { t } = useTranslation();
   const setStage = useFirm((s) => s.setStage);
-  const timer = useFirm((s) => s.timer);
-  const startTimer = useFirm((s) => s.startTimer);
-  const stopTimer = useFirm((s) => s.stopTimer);
-  const logMinutes = useFirm((s) => s.logMinutes);
   const select = useFirm((s) => s.select);
   const { snapshot } = derived;
   const area = derived.areaById.get(m.practiceAreaId)!;
@@ -78,8 +75,6 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
   const stageIndex = PIPELINE_STAGES.indexOf(m.stage);
   const docs = snapshot.documents.filter((d) => d.matterId === m.id);
   const team = [m.responsibleId, ...m.teamIds].map((id) => derived.staffById.get(id)).filter((p): p is Staff => Boolean(p));
-  const running = timer?.matterId === m.id;
-  const elapsed = useElapsed(running ? timer!.startedAt : null);
   const marginTone = fin.marginRate >= 0.35 ? ALERT_COLORS.ok : fin.marginRate >= 0.15 ? ALERT_COLORS.attention : ALERT_COLORS.critique;
 
   return (
@@ -143,30 +138,7 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
         )}
       </Section>
 
-      <Section title={t('matter.timer')} aside={<span className="tabular text-[11px] text-[var(--color-muted)]">{t('matter.logged', { hours: hours(fin.hours) })}</span>}>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => (running ? void stopTimer() : startTimer(m.id))}
-            className={`flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white shadow active:scale-95 ${running ? 'bg-[var(--color-critique)]' : 'bg-[var(--color-brand)]'}`}
-          >
-            {running ? <Icon.stop /> : <Icon.play />}
-            {running ? `${t('matter.stop')} · ${elapsed}` : t('matter.start')}
-          </button>
-          <div className="flex gap-1" aria-label={t('matter.quickAdd')}>
-            {[6, 15, 30, 60].map((min) => (
-              <button
-                key={min}
-                type="button"
-                onClick={() => void logMinutes(m.id, min, t('matter.quickAdd'))}
-                className="tabular h-9 rounded-lg border border-[var(--color-line)] bg-white px-2 text-xs font-semibold hover:border-[var(--color-brand)]"
-              >
-                +{hours(min / 60)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Section>
+      <TimePanel matter={m} derived={derived} />
 
       <Section title={t('matter.finances')}>
         <div className="grid grid-cols-3 gap-3">
@@ -220,18 +192,6 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
       </Section>
     </>
   );
-}
-
-function useElapsed(since: number | null): string {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (since === null) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [since]);
-  if (since === null) return '';
-  const s = Math.max(0, Math.floor((now - since) / 1000));
-  return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
 /* ─────────────────────────── Pôle ─────────────────────────── */

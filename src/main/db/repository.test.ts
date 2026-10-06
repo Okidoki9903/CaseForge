@@ -36,12 +36,33 @@ describe('dépôt SQLite', () => {
     expect((db.prepare('SELECT COUNT(*) n FROM audit_log').get() as { n: number }).n).toBe(1);
   });
 
-  it('saisie de temps au taux du collaborateur', () => {
-    const { repo } = freshRepo();
-    const e = repo.addTimeEntry({ matterId: 'm-001', staffId: 'st-01', date: '2026-10-06', minutes: 18, billable: true, description: 'Test' });
+  it('saisie de temps : arrondi à 0,1 h et taux figé à la saisie', () => {
+    const { repo, db } = freshRepo();
+    const e = repo.addTimeEntry({ matterId: 'm-001', staffId: 'st-01', date: '2026-10-06', minutes: 13, billable: true, description: ' Test ' });
+    expect(e.minutes).toBe(18);
+    expect(e.description).toBe('Test');
     expect(e.rateCents).toBe(52500);
-    expect(repo.getSnapshot().timeEntries.some((t) => t.id === e.id)).toBe(true);
+    // Hausse de taux ultérieure : l'entrée existante conserve son taux.
+    db.prepare('UPDATE staff SET hourly_rate_cents = 60000 WHERE id = ?').run('st-01');
+    expect(repo.getSnapshot().timeEntries.find((t) => t.id === e.id)?.rateCents).toBe(52500);
+    expect(repo.addTimeEntry({ ...e, minutes: 6 }).rateCents).toBe(60000);
     expect(() => repo.addTimeEntry({ ...e, minutes: 0 })).toThrow();
+    expect(() => repo.addTimeEntry({ ...e, description: '  ' })).toThrow();
+    expect(() => repo.addTimeEntry({ ...e, matterId: 'inconnu' })).toThrow();
+  });
+
+  it('statut facturé / radié journalisé, transitions contrôlées', () => {
+    const { repo, db } = freshRepo();
+    const e = repo.addTimeEntry({ matterId: 'm-001', staffId: 'st-01', date: '2026-10-06', minutes: 30, billable: true, description: 'Test' });
+    expect(() => repo.setTimeEntryStatus(e.id, 'facture', 'x')).toThrow();
+    repo.setTimeEntryStatus(e.id, 'facture', 'hb');
+    expect(() => repo.setTimeEntryStatus(e.id, 'radie', 'HB')).toThrow();
+    repo.setTimeEntryStatus(e.id, 'wip', 'HB');
+    repo.setTimeEntryStatus(e.id, 'radie', 'HB');
+    expect(repo.getSnapshot().timeEntries.find((t) => t.id === e.id)?.status).toBe('radie');
+    const log = db.prepare("SELECT actor, details_json FROM audit_log WHERE action = 'set_time_status' ORDER BY id").all() as { actor: string; details_json: string }[];
+    expect(log.map((l) => l.actor)).toEqual(['HB', 'HB', 'HB']);
+    expect(JSON.parse(log[0].details_json)).toEqual({ from: 'wip', to: 'facture' });
   });
 
   it('changement d’étape contrôlé', () => {

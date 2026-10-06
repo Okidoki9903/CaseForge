@@ -3,8 +3,10 @@
  */
 import type Database from 'better-sqlite3';
 import type {
-  FirmSnapshot, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry,
+  FirmSnapshot, Id, Matter, NewTimeEntry, PipelineStage, TimeEntry, TimeEntryStatus,
 } from '@shared/types';
+import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
+import { normalizeInitials } from '@shared/domain/validation';
 import { PIPELINE_STAGES } from '@shared/types';
 import { buildDemoSnapshot } from '@shared/seed';
 import { MIGRATIONS } from './migrations';
@@ -85,8 +87,7 @@ export class Repository {
   }
 
   acknowledgeDeadline(id: Id, initials: string): void {
-    const who = initials.trim().toUpperCase();
-    if (!/^[A-ZÀ-Ý]{2,4}$/.test(who)) throw new Error('Initiales invalides (2 à 4 lettres).');
+    const who = normalizeInitials(initials);
     this.db.transaction(() => {
       const res = this.db
         .prepare("UPDATE deadlines SET acknowledged_at = ?, acknowledged_by = ? WHERE id = ? AND status = 'ouvert'")
@@ -117,12 +118,23 @@ export class Repository {
   }
 
   addTimeEntry(e: NewTimeEntry): TimeEntry {
-    if (!Number.isInteger(e.minutes) || e.minutes <= 0 || e.minutes > 24 * 60) throw new Error('Durée invalide.');
+    const minutes = roundBillableMinutes(e.minutes);
+    const description = e.description.trim();
+    if (!description) throw new Error('Description requise.');
+    const matter = this.db.prepare('SELECT id FROM matters WHERE id = ?').get(e.matterId);
+    if (!matter) throw new Error('Dossier introuvable.');
     const staff = this.db.prepare('SELECT hourly_rate_cents FROM staff WHERE id = ?').get(e.staffId) as Row | undefined;
     if (!staff) throw new Error('Collaborateur introuvable.');
+    // Construction explicite : aucun champ supplémentaire de l'appelant (id, statut…) n'est repris.
     const entry: TimeEntry = {
       id: `t-${crypto.randomUUID()}`,
-      ...e,
+      matterId: e.matterId,
+      staffId: e.staffId,
+      date: e.date,
+      billable: Boolean(e.billable),
+      description,
+      minutes,
+      // Taux figé : une hausse ultérieure du taux du collaborateur ne modifie pas cette entrée.
       rateCents: staff.hourly_rate_cents,
       status: 'wip',
     };
@@ -133,6 +145,17 @@ export class Repository {
       )
       .run({ ...entry, billable: entry.billable ? 1 : 0 });
     return entry;
+  }
+
+  setTimeEntryStatus(id: Id, status: TimeEntryStatus, actor: string): void {
+    const who = normalizeInitials(actor);
+    this.db.transaction(() => {
+      const row = this.db.prepare('SELECT status FROM time_entries WHERE id = ?').get(id) as Row | undefined;
+      if (!row) throw new Error('Entrée de temps introuvable.');
+      assertStatusTransition(row.status, status);
+      this.db.prepare('UPDATE time_entries SET status = ? WHERE id = ?').run(status, id);
+      this.audit(who, 'set_time_status', 'time_entry', id, { from: row.status, to: status });
+    })();
   }
 
   /** Remplace toutes les données par le jeu de démonstration. */

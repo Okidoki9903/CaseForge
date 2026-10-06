@@ -4,7 +4,8 @@
  * sont recalculées dans `useDerived` à partir de l'instantané.
  */
 import { create } from 'zustand';
-import type { FirmSnapshot, Id, PipelineStage } from '@shared/types';
+import type { FirmSnapshot, Id, PipelineStage, TimeEntry, TimeEntryStatus } from '@shared/types';
+import { timeEntriesToCsv } from '@shared/domain/time';
 import { localToday } from '@shared/domain/dates';
 import { api } from '../api';
 
@@ -42,9 +43,16 @@ interface FirmState {
   acknowledge: (deadlineId: Id, initials: string) => Promise<void>;
   complete: (deadlineId: Id) => Promise<void>;
   setStage: (matterId: Id, stage: PipelineStage) => Promise<void>;
-  logMinutes: (matterId: Id, minutes: number, description: string) => Promise<void>;
+  /** Saisie de temps (durée brute en minutes, arrondie au dixième d'heure par la couche de données). */
+  logMinutes: (matterId: Id, minutes: number, description: string, billable?: boolean) => Promise<boolean>;
+  setTimeStatus: (entryId: Id, status: TimeEntryStatus) => Promise<void>;
+  exportCsv: (entries: TimeEntry[], label: string) => Promise<void>;
+  timeDrawerOpen: boolean;
+  setTimeDrawerOpen: (open: boolean) => void;
+  /** Initiales de l'utilisateur de la session (auteur des actions journalisées). */
+  actor: () => string;
   startTimer: (matterId: Id) => void;
-  stopTimer: () => Promise<void>;
+  stopTimer: (description?: string) => Promise<void>;
   resetDemo: () => Promise<void>;
 }
 
@@ -69,12 +77,14 @@ const pref = {
 
 export const useFirm = create<FirmState>((set, get) => {
   /** Exécute une mutation puis recharge l'instantané ; les erreurs sont affichées. */
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>): Promise<boolean> => {
     try {
       await fn();
       set({ snapshot: await api.getSnapshot(), error: null });
+      return true;
     } catch (err) {
       set({ error: err instanceof Error ? err.message : String(err) });
+      return false;
     }
   };
 
@@ -90,37 +100,63 @@ export const useFirm = create<FirmState>((set, get) => {
     currentStaffId: pref.get('cf.staff', 'st-01'),
     timer: pref.get<RunningTimer | null>('cf.timer', null),
 
-    load: () => run(async () => set({ today: localToday() })),
+    timeDrawerOpen: false,
+
+    load: async () => {
+      await run(async () => set({ today: localToday() }));
+    },
+    actor: () => get().snapshot?.staff.find((p) => p.id === get().currentStaffId)?.initials ?? '',
     select: (selection) => set({ selection }),
     hover: (hovered) => set({ hovered }),
     setStageFilter: (stageFilter) => set({ stageFilter }),
-    setAlertCenterOpen: (alertCenterOpen) => set({ alertCenterOpen }),
+    setAlertCenterOpen: (alertCenterOpen) => set(alertCenterOpen ? { alertCenterOpen, timeDrawerOpen: false } : { alertCenterOpen }),
     setConflictOpen: (conflictOpen) => set({ conflictOpen }),
     setCurrentStaff: (id) => {
       pref.set('cf.staff', id);
       set({ currentStaffId: id });
     },
-    acknowledge: (id, initials) => run(() => api.acknowledgeDeadline(id, initials)),
-    complete: (id) => run(() => api.completeDeadline(id)),
-    setStage: (id, stage) => run(() => api.setMatterStage(id, stage)),
-    logMinutes: (matterId, minutes, description) =>
+    setTimeDrawerOpen: (timeDrawerOpen) => set(timeDrawerOpen ? { timeDrawerOpen, alertCenterOpen: false } : { timeDrawerOpen }),
+    acknowledge: async (id, initials) => {
+      await run(() => api.acknowledgeDeadline(id, initials));
+    },
+    complete: async (id) => {
+      await run(() => api.completeDeadline(id));
+    },
+    setStage: async (id, stage) => {
+      await run(() => api.setMatterStage(id, stage));
+    },
+    logMinutes: (matterId, minutes, description, billable = true) =>
       run(() =>
-        api.addTimeEntry({ matterId, staffId: get().currentStaffId, date: localToday(), minutes, billable: true, description }),
+        api.addTimeEntry({ matterId, staffId: get().currentStaffId, date: localToday(), minutes, billable, description }),
       ),
+    setTimeStatus: async (entryId, status) => {
+      await run(() => api.setTimeEntryStatus(entryId, status, get().actor()));
+    },
+    exportCsv: async (entries, label) => {
+      const s = get().snapshot;
+      if (!s) return;
+      try {
+        await api.saveTextFile(`caseforge-temps-${label}-${localToday()}.csv`, timeEntriesToCsv(entries, s));
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
     startTimer: (matterId) => {
       const timer = { matterId, startedAt: Date.now() };
       pref.set('cf.timer', timer);
       set({ timer });
     },
-    stopTimer: async () => {
+    stopTimer: async (description) => {
       const t = get().timer;
       if (!t) return;
       pref.set('cf.timer', null);
       set({ timer: null });
-      // Arrondi au dixième d'heure supérieur (6 minutes), usage courant au Canada.
-      const minutes = Math.max(6, Math.ceil((Date.now() - t.startedAt) / 60000 / 6) * 6);
-      await get().logMinutes(t.matterId, minutes, 'Chronomètre');
+      // Durée brute : la couche de données arrondit au dixième d'heure supérieur (6 min).
+      const minutes = Math.max(0.01, (Date.now() - t.startedAt) / 60000);
+      await get().logMinutes(t.matterId, minutes, description || 'Chronomètre');
     },
-    resetDemo: () => run(() => api.resetDemoData()),
+    resetDemo: async () => {
+      await run(() => api.resetDemoData());
+    },
   };
 });

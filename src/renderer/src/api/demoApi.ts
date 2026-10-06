@@ -6,6 +6,8 @@ import type { CaseForgeApi } from '@shared/api';
 import type { FirmSnapshot, TimeEntry } from '@shared/types';
 import { buildDemoSnapshot } from '@shared/seed';
 import { localToday } from '@shared/domain/dates';
+import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
+import { normalizeInitials } from '@shared/domain/validation';
 
 const DB_NAME = 'caseforge-demo';
 const STORE = 'kv';
@@ -76,8 +78,8 @@ export function createDemoApi(): CaseForgeApi {
       mutate((s) => {
         const d = s.deadlines.find((x) => x.id === id && x.status === 'ouvert');
         if (!d) throw new Error('Échéance introuvable ou déjà fermée.');
+        d.acknowledgedBy = normalizeInitials(initials);
         d.acknowledgedAt = new Date().toISOString();
-        d.acknowledgedBy = initials.trim().toUpperCase();
       }),
     completeDeadline: (id) =>
       mutate((s) => {
@@ -95,12 +97,44 @@ export function createDemoApi(): CaseForgeApi {
     addTimeEntry: async (e) => {
       let created: TimeEntry | undefined;
       await mutate((s) => {
+        const minutes = roundBillableMinutes(e.minutes);
+        const description = e.description.trim();
+        if (!description) throw new Error('Description requise.');
+        if (!s.matters.some((m) => m.id === e.matterId)) throw new Error('Dossier introuvable.');
         const staff = s.staff.find((x) => x.id === e.staffId);
         if (!staff) throw new Error('Collaborateur introuvable.');
-        created = { id: `t-${crypto.randomUUID()}`, ...e, rateCents: staff.hourlyRateCents, status: 'wip' };
+        created = {
+          id: `t-${crypto.randomUUID()}`,
+          matterId: e.matterId,
+          staffId: e.staffId,
+          date: e.date,
+          billable: Boolean(e.billable),
+          description,
+          minutes,
+          rateCents: staff.hourlyRateCents,
+          status: 'wip',
+        };
         s.timeEntries.push(created);
       });
       return created!;
+    },
+    setTimeEntryStatus: (id, status, actor) =>
+      mutate((s) => {
+        normalizeInitials(actor);
+        const t = s.timeEntries.find((x) => x.id === id);
+        if (!t) throw new Error('Entrée de temps introuvable.');
+        assertStatusTransition(t.status, status);
+        t.status = status;
+      }),
+    saveTextFile: async (name, content) => {
+      // Téléchargement local (Blob) : aucune donnée n'est transmise.
+      const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return true;
     },
     resetDemoData: () => save(buildDemoSnapshot(localToday())),
   };

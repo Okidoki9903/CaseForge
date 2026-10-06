@@ -1,9 +1,11 @@
 /**
  * Pont IPC : seules ces opérations sont exposées au renderer, avec validation des entrées.
  */
-import { ipcMain } from 'electron';
+import { BrowserWindow, app, dialog, ipcMain } from 'electron';
+import { writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { IPC } from '@shared/api';
-import type { NewTimeEntry, PipelineStage } from '@shared/types';
+import type { NewTimeEntry, PipelineStage, TimeEntryStatus } from '@shared/types';
 import { localToday } from '@shared/domain/dates';
 import type { Repository } from './db/repository';
 
@@ -39,6 +41,28 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
       billable: Boolean(entry.billable),
       description: String(entry.description ?? '').slice(0, 2000),
     });
+  });
+
+  ipcMain.handle(IPC.setTimeEntryStatus, (_e, id: unknown, status: unknown, actor: unknown) => {
+    const st = str(status, 'status');
+    if (!['wip', 'facture', 'radie'].includes(st)) throw new Error('Statut invalide.');
+    repo.setTimeEntryStatus(str(id, 'id'), st as TimeEntryStatus, str(actor, 'actor'));
+  });
+
+  // Écriture d'un fichier choisi par l'utilisateur via la boîte de dialogue native : le
+  // renderer ne peut jamais écrire ailleurs que là où l'utilisateur l'a explicitement décidé.
+  ipcMain.handle(IPC.saveTextFile, async (e, name: unknown, content: unknown) => {
+    if (typeof content !== 'string' || content.length > 50_000_000) throw new Error('Contenu invalide.');
+    const safeName = basename(str(name, 'name')).replace(/[^\w.\-]+/g, '_');
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const options = {
+      defaultPath: join(app.getPath('documents'), safeName),
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    };
+    const res = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (res.canceled || !res.filePath) return false;
+    await writeFile(res.filePath, content, 'utf8');
+    return true;
   });
 
   ipcMain.handle(IPC.resetDemoData, () => {

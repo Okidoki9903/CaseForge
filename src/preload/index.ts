@@ -12,6 +12,8 @@ const api: CaseForgeApi = {
   completeDeadline: (id) => ipcRenderer.invoke(IPC.completeDeadline, id),
   setMatterStage: (id, stage) => ipcRenderer.invoke(IPC.setMatterStage, id, stage),
   addTimeEntry: (entry) => ipcRenderer.invoke(IPC.addTimeEntry, entry),
+  setTimeEntryStatus: (id, status, actor) => ipcRenderer.invoke(IPC.setTimeEntryStatus, id, status, actor),
+  saveTextFile: (name, content) => ipcRenderer.invoke(IPC.saveTextFile, name, content),
   resetDemoData: () => ipcRenderer.invoke(IPC.resetDemoData),
 };
 
