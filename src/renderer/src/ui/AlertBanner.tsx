@@ -15,7 +15,7 @@ export function AlertBanner({ derived }: { derived: Derived }) {
   const setAlertCenterOpen = useFirm((s) => s.setAlertCenterOpen);
   // Laisse la place au panneau de détail (gauche) et au centre d'alertes (droite).
   const panelOpen = useFirm((s) => s.selection !== null);
-  const drawerOpen = useFirm((s) => s.alertCenterOpen || s.timeDrawerOpen);
+  const drawerWidth = useFirm((s) => (s.reportsOpen ? 520 : s.timeDrawerOpen ? 460 : s.alertCenterOpen ? 420 : 0));
   const pending = derived.alerts.filter((a) => a.requiresAcknowledgement);
   const [index, setIndex] = useState(0);
 
@@ -31,7 +31,7 @@ export function AlertBanner({ derived }: { derived: Derived }) {
   const color = ALERT_COLORS[pending[0].level];
 
   return (
-    <div className="absolute top-[86px] z-30" style={{ left: panelOpen ? 404 : 12, right: drawerOpen ? 484 : 12 }}>
+    <div className="absolute top-[86px] z-30" style={{ left: panelOpen ? 404 : 12, right: drawerWidth ? drawerWidth + 24 : 12 }}>
       <div
         role="alert"
         className="pointer-events-auto mx-auto flex max-w-[860px] items-center gap-3 rounded-xl px-4 py-2.5 text-white shadow-xl"

@@ -37,6 +37,7 @@ export function TopBar({ derived }: { derived: Derived }) {
   const setCurrentStaff = useFirm((s) => s.setCurrentStaff);
   const setSettingsOpen = useFirm((s) => s.setSettingsOpen);
   const setNewMatterOpen = useFirm((s) => s.setNewMatterOpen);
+  const setReportsOpen = useFirm((s) => s.setReportsOpen);
   const criticalTone = kpis.criticalDeadlines > 0 ? ALERT_COLORS.critique : ALERT_COLORS.ok;
 
   return (
@@ -95,6 +96,9 @@ export function TopBar({ derived }: { derived: Derived }) {
         </IconButton>
         <IconButton onClick={() => setConflictOpen(true)} title={`${t('conflicts.title')} (Ctrl+K)`}>
           <Icon.search /> <span className="text-xs">{t('actions.search')}</span>
+        </IconButton>
+        <IconButton onClick={() => setReportsOpen(true)} title={t('reports.title')}>
+          <Icon.file />
         </IconButton>
         <IconButton onClick={() => setAlertCenterOpen(true)} title={t('alerts.title')} className="relative">
           <Icon.bell />

@@ -68,6 +68,26 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
     return true;
   });
 
+  // PDF : le HTML (autonome, sans script) est rendu dans une fenêtre cachée, sans JavaScript,
+  // dans la même session (donc soumise au blocage réseau), puis converti par Chromium.
+  ipcMain.handle(IPC.savePdf, async (e, name: unknown, html: unknown) => {
+    if (typeof html !== 'string' || html.length > 20_000_000) throw new Error('Document invalide.');
+    const safeName = basename(str(name, 'name')).replace(/[^\w.\-]+/g, '_');
+    const parent = BrowserWindow.fromWebContents(e.sender);
+    const options = { defaultPath: join(app.getPath('documents'), safeName), filters: [{ name: 'PDF', extensions: ['pdf'] }] };
+    const res = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options);
+    if (res.canceled || !res.filePath) return false;
+    const win = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, contextIsolation: true } });
+    try {
+      await win.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(html, 'utf8').toString('base64')}`);
+      const pdf = await win.webContents.printToPDF({ pageSize: 'Letter', landscape: true, printBackground: true });
+      await writeFile(res.filePath, pdf);
+    } finally {
+      win.destroy();
+    }
+    return true;
+  });
+
   ipcMain.handle(IPC.recordConflictCheck, (_e, query: unknown, actor: unknown, matterId: unknown) =>
     repo.recordConflictCheck(str(query, 'query'), str(actor, 'actor'), matterId ? str(matterId, 'matterId') : null),
   );

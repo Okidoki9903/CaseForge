@@ -30,6 +30,11 @@ export interface CaseForgeApi {
    */
   saveTextFile(suggestedName: string, content: string): Promise<boolean>;
   /**
+   * Convertit un document HTML autonome en PDF localement et l'enregistre (Electron :
+   * printToPDF + boîte de dialogue ; navigateur : impression → « Enregistrer en PDF »).
+   */
+  savePdf(suggestedName: string, html: string): Promise<boolean>;
+  /**
    * Exécute ET enregistre une vérification de conflits. La recherche est refaite par la
    * couche de données sur ses propres données (la trace ne dépend pas de l'interface).
    */
@@ -61,6 +66,7 @@ export const IPC = {
   addTimeEntry: 'cf:addTimeEntry',
   setTimeEntryStatus: 'cf:setTimeEntryStatus',
   saveTextFile: 'cf:saveTextFile',
+  savePdf: 'cf:savePdf',
   recordConflictCheck: 'cf:recordConflictCheck',
   updateConflictCheck: 'cf:updateConflictCheck',
   resetDemoData: 'cf:resetDemoData',

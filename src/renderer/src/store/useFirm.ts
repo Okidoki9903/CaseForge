@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import type {
   ConflictCheck, ConflictStatus, FirmSettings, FirmSnapshot, Id, NewFirmInput, PipelineStage, StaffInput, TimeEntry, TimeEntryStatus,
 } from '@shared/types';
-import { timeEntriesToCsv } from '@shared/domain/time';
+import { timeEntriesToCsv, type CsvDialect } from '@shared/domain/time';
 import type { NewDeadlineInput, NewMatterInput } from '@shared/domain/matters';
 import { localToday } from '@shared/domain/dates';
 import { api } from '../api';
@@ -54,6 +54,13 @@ interface FirmState {
   logMinutes: (matterId: Id, minutes: number, description: string, billable?: boolean) => Promise<boolean>;
   setTimeStatus: (entryId: Id, status: TimeEntryStatus) => Promise<void>;
   exportCsv: (entries: TimeEntry[], label: string) => Promise<void>;
+  /** Format CSV préféré (mémorisé sur ce poste). */
+  csvDialect: CsvDialect;
+  setCsvDialect: (d: CsvDialect) => void;
+  /** Enregistre un fichier (CSV ou PDF) ; les erreurs sont affichées. */
+  saveFile: (kind: 'csv' | 'pdf', name: string, content: string) => Promise<void>;
+  reportsOpen: boolean;
+  setReportsOpen: (open: boolean) => void;
   timeDrawerOpen: boolean;
   setTimeDrawerOpen: (open: boolean) => void;
   recordConflictCheck: (query: string, matterId?: Id | null) => Promise<ConflictCheck | null>;
@@ -146,14 +153,14 @@ export const useFirm = create<FirmState>((set, get) => {
     hover: (hovered) => set({ hovered }),
     setStageFilter: (stageFilter) => set({ stageFilter }),
     setAlertCenterOpen: (alertCenterOpen, alertFilter = 'all') =>
-      set(alertCenterOpen ? { alertCenterOpen, alertFilter, timeDrawerOpen: false } : { alertCenterOpen }),
+      set(alertCenterOpen ? { alertCenterOpen, alertFilter, timeDrawerOpen: false, reportsOpen: false } : { alertCenterOpen }),
     setAlertFilter: (alertFilter) => set({ alertFilter }),
     setConflictOpen: (conflictOpen) => set({ conflictOpen }),
     setCurrentStaff: (id) => {
       pref.set('cf.staff', id);
       set({ currentStaffId: id });
     },
-    setTimeDrawerOpen: (timeDrawerOpen) => set(timeDrawerOpen ? { timeDrawerOpen, alertCenterOpen: false } : { timeDrawerOpen }),
+    setTimeDrawerOpen: (timeDrawerOpen) => set(timeDrawerOpen ? { timeDrawerOpen, alertCenterOpen: false, reportsOpen: false } : { timeDrawerOpen }),
     acknowledge: async (id, initials) => {
       await run(() => api.acknowledgeDeadline(id, initials));
     },
@@ -174,7 +181,7 @@ export const useFirm = create<FirmState>((set, get) => {
       const s = get().snapshot;
       if (!s) return;
       try {
-        await api.saveTextFile(`caseforge-temps-${label}-${localToday()}.csv`, timeEntriesToCsv(entries, s));
+        await api.saveTextFile(`caseforge-temps-${label}-${localToday()}.csv`, timeEntriesToCsv(entries, s, get().csvDialect));
       } catch (err) {
         set({ error: err instanceof Error ? err.message : String(err) });
       }
@@ -228,6 +235,20 @@ export const useFirm = create<FirmState>((set, get) => {
         pref.set('cf.timer', null);
         set({ currentStaffId: owner.id, timer: null, selection: null, settingsOpen: false });
       }),
+    csvDialect: pref.get<CsvDialect>('cf.csvDialect', 'facturation'),
+    setCsvDialect: (csvDialect) => {
+      pref.set('cf.csvDialect', csvDialect);
+      set({ csvDialect });
+    },
+    saveFile: async (kind, name, content) => {
+      try {
+        await (kind === 'csv' ? api.saveTextFile(name, content) : api.savePdf(name, content));
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+    reportsOpen: false,
+    setReportsOpen: (reportsOpen) => set(reportsOpen ? { reportsOpen, alertCenterOpen: false, timeDrawerOpen: false } : { reportsOpen }),
     resetDemo: async () => {
       await run(() => api.resetDemoData());
     },

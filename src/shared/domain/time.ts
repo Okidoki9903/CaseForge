@@ -68,36 +68,56 @@ export function wipSummary(entries: TimeEntry[], matterId?: Id): WipSummary {
 
 /* ─────────────── Export CSV (import dans un logiciel de facturation) ─────────────── */
 
+/**
+ * Deux dialectes CSV :
+ *  - `facturation` : virgule, point décimal — le plus largement accepté par les logiciels ;
+ *  - `excel-fr` : point-virgule, virgule décimale — ce qu'attend Excel en français (Québec).
+ * Les deux sont en UTF-8 avec BOM.
+ */
+export type CsvDialect = 'facturation' | 'excel-fr';
+
+const DIALECT = {
+  facturation: { sep: ',', dec: '.' },
+  'excel-fr': { sep: ';', dec: ',' },
+} as const;
+
+/** RFC 4180 : guillemets si séparateur, guillemet ou saut de ligne ; neutralise les formules Excel. */
+export function csvCell(value: string | number, sep: ',' | ';' = ','): string {
+  let s = String(value);
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return s.includes(sep) || /["\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Construit un CSV complet (BOM, CRLF) ; les nombres passent par `num` pour le séparateur décimal. */
+export function buildCsv(header: readonly string[], rows: (string | number | { n: number; digits: number })[][], dialect: CsvDialect = 'facturation'): string {
+  const { sep, dec } = DIALECT[dialect];
+  const cell = (v: string | number | { n: number; digits: number }) =>
+    // Les nombres ne sont jamais neutralisés (un « -1 » reste un nombre) ; seul le texte peut l'être.
+    typeof v === 'object' ? csvCell(v.n.toFixed(v.digits).replace('.', dec), sep) : csvCell(v, sep);
+  return '\uFEFF' + [header.join(sep), ...rows.map((r) => r.map(cell).join(sep))].join('\r\n') + '\r\n';
+}
+
 export const CSV_COLUMNS = [
-  'date', 'no_dossier', 'dossier', 'client', 'collaborateur', 'initiales',
+  'date', 'no_dossier', 'dossier', 'client', 'pole', 'collaborateur', 'initiales', 'role',
   'minutes', 'heures', 'taux_horaire', 'montant', 'facturable', 'statut', 'description', 'id_entree',
 ] as const;
 
-/** RFC 4180 : guillemets si virgule, guillemet ou saut de ligne ; neutralise les formules Excel. */
-export function csvCell(value: string | number): string {
-  let s = String(value);
-  if (/^[=+\-@\t\r]/.test(s) && typeof value === 'string') s = `'${s}`;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/**
- * CSV UTF-8 avec BOM (lisible par Excel), séparateur virgule, décimales avec point
- * (format le plus largement accepté par les logiciels de facturation).
- */
-export function timeEntriesToCsv(entries: TimeEntry[], s: FirmSnapshot): string {
+export function timeEntriesToCsv(entries: TimeEntry[], s: FirmSnapshot, dialect: CsvDialect = 'facturation'): string {
   const matters = new Map(s.matters.map((m) => [m.id, m]));
   const parties = new Map(s.parties.map((p) => [p.id, p]));
   const staff = new Map(s.staff.map((p) => [p.id, p]));
+  const areas = new Map(s.practiceAreas.map((a) => [a.id, a]));
   const rows = [...entries]
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
     .map((t) => {
       const m = matters.get(t.matterId);
       const p = staff.get(t.staffId);
       return [
-        t.date, m?.number ?? '', m?.title ?? '', (m && parties.get(m.clientId)?.name) ?? '', p?.name ?? '', p?.initials ?? '',
-        t.minutes, (t.minutes / 60).toFixed(1), (t.rateCents / 100).toFixed(2), (entryValueCents(t) / 100).toFixed(2),
+        t.date, m?.number ?? '', m?.title ?? '', (m && parties.get(m.clientId)?.name) ?? '', (m && areas.get(m.practiceAreaId)?.code) ?? '',
+        p?.name ?? '', p?.initials ?? '', p?.role ?? '',
+        t.minutes, { n: t.minutes / 60, digits: 1 }, { n: t.rateCents / 100, digits: 2 }, { n: entryValueCents(t) / 100, digits: 2 },
         t.billable ? 'oui' : 'non', t.status, t.description, t.id,
-      ].map(csvCell).join(',');
+      ];
     });
-  return '﻿' + [CSV_COLUMNS.join(','), ...rows].join('\r\n') + '\r\n';
+  return buildCsv(CSV_COLUMNS, rows, dialect);
 }

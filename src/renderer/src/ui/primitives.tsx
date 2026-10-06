@@ -58,7 +58,7 @@ export function IconButton({ onClick, title, children, className = '' }: { onCli
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-[var(--color-ink)] transition hover:bg-white/80 active:scale-95 ${className}`}
+      className={`inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-[var(--color-ink)] transition hover:bg-white/80 active:scale-95 ${className}`}
     >
       {children}
     </button>

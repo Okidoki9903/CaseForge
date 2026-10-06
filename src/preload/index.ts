@@ -14,6 +14,7 @@ const api: CaseForgeApi = {
   addTimeEntry: (entry) => ipcRenderer.invoke(IPC.addTimeEntry, entry),
   setTimeEntryStatus: (id, status, actor) => ipcRenderer.invoke(IPC.setTimeEntryStatus, id, status, actor),
   saveTextFile: (name, content) => ipcRenderer.invoke(IPC.saveTextFile, name, content),
+  savePdf: (name, html) => ipcRenderer.invoke(IPC.savePdf, name, html),
   recordConflictCheck: (query, actor, matterId) => ipcRenderer.invoke(IPC.recordConflictCheck, query, actor, matterId ?? null),
   updateConflictCheck: (id, patch, actor) => ipcRenderer.invoke(IPC.updateConflictCheck, id, patch, actor),
   resetDemoData: () => ipcRenderer.invoke(IPC.resetDemoData),

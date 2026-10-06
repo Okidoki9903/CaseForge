@@ -53,6 +53,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     hardenSession();
+    // Toute fenêtre (y compris la fenêtre cachée de génération PDF) est durcie.
+    app.on('web-contents-created', (_e, contents) => hardenWebContents(contents));
 
     const userData = app.getPath('userData');
     const db = openDatabase(join(userData, 'caseforge.sqlite'));

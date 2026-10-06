@@ -163,6 +163,13 @@ export function createDemoApi(): CaseForgeApi {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       return true;
     },
+    savePdf: async (_name, html) => {
+      // Navigateur : impression du document (l'utilisateur choisit « Enregistrer en PDF »).
+      const w = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' })), '_blank');
+      if (!w) throw new Error('Fenêtre bloquée par le navigateur : autorisez les fenêtres pour imprimer.');
+      w.addEventListener('load', () => w.print(), { once: true });
+      return true;
+    },
     recordConflictCheck: async (query, actor, matterId = null) => {
       let created: ConflictCheck | undefined;
       await mutate((s) => {

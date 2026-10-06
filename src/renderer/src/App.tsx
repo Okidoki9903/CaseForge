@@ -10,6 +10,7 @@ import { DetailPanel } from './ui/DetailPanel';
 import { Legend } from './ui/Legend';
 import { PipelineBar } from './ui/PipelineBar';
 import { TimeDrawer } from './ui/TimeDrawer';
+import { ReportsDrawer } from './ui/ReportsDrawer';
 import { Onboarding } from './ui/Onboarding';
 import { Settings } from './ui/Settings';
 import { EmptyFirmHint, NewMatter } from './ui/NewMatter';
@@ -55,6 +56,7 @@ export function App() {
         <Legend />
         <AlertCenter derived={derived} />
         <TimeDrawer derived={derived} />
+        <ReportsDrawer derived={derived} />
         <ConflictSearch derived={derived} />
         <EmptyFirmHint derived={derived} />
         <NewMatter derived={derived} />
