@@ -81,6 +81,11 @@ export const fr = {
     existingClient: 'Client existant',
     match: 'Correspondance {{score}} %',
   },
+  recess: {
+    ete: 'Période estivale où le tribunal n’est pas tenu de siéger (30 juin – 1er sept.) — le délai court quand même (art. 83 C.p.c.).',
+    fetes: 'Période des Fêtes où le tribunal n’est pas tenu de siéger (20 déc. – 7 janv.) — le délai court quand même (art. 83 C.p.c.).',
+  },
+  calendar: { valide: 'Calendrier validé', a_valider: 'Calendrier à valider', socle: 'Jours fériés nationaux seulement' },
   pipelineBar: { title: 'Pipeline de production' },
   legend: { title: 'Légende' },
   actions: { close: 'Fermer', reset: 'Réinitialiser la démo', search: 'Conflits', alerts: 'Alertes' },

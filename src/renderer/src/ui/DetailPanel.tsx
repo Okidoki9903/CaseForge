@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { PIPELINE_STAGES, type Matter, type Party, type PracticeArea, type Staff } from '@shared/types';
 import { ALERT_COLORS } from '@shared/domain/alerts';
 import { areaStats, matterFinancials } from '@shared/domain/metrics';
+import { calendarStatus } from '@shared/domain/calendar';
 import type { Derived } from '../store/useDerived';
 import { useFirm } from '../store/useFirm';
 import { hours, money, percent } from '../lib/format';
@@ -98,7 +99,16 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
             </>
           )}
           <dt className="text-[var(--color-muted)]">Mandat</dt>
-          <dd>{t(`fee.${m.feeArrangement}`)} · {m.jurisdiction}</dd>
+          <dd>
+            {t(`fee.${m.feeArrangement}`)} · {m.jurisdiction}{' '}
+            <span
+              className={`ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                calendarStatus(m.jurisdiction) === 'valide' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {t(`calendar.${calendarStatus(m.jurisdiction)}`)}
+            </span>
+          </dd>
         </dl>
       </Header>
 

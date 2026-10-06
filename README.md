@@ -4,7 +4,7 @@
 
 ![Campus](docs/captures/campus.png)
 
-> **Statut :** v0.1, premier écran fonctionnel. Les calendriers judiciaires et le catalogue de délais **doivent être validés par un avocat** de chaque ressort avant tout usage réel (voir [Points à valider](#points-de-droit-à-valider)).
+> **Statut :** v0.1, premier écran fonctionnel. Les calendriers du Québec, de l'Ontario et des Cours fédérales ont été validés ; la C.-B., l'Alberta et une partie du catalogue de délais restent **à valider** (voir [Droit modélisé](#droit-modélisé-et-points-à-valider)).
 
 ---
 
@@ -167,23 +167,24 @@ src/
 5. **Notification du système d’exploitation**, même si la fenêtre est réduite : vérification toutes les 15 minutes, une seule notification par échéance et par jour.
 6. **Moteur de délais expliqué** (`deadlineRules.ts`). Chaque calcul retourne son raisonnement : jour du point de départ exclu, report pour cause de jour non juridique, fondement légal. Par prudence, CaseForge retient la **date brute**, avant report, comme échéance d'alerte.
 
-## Points de droit à valider
+## Droit modélisé et points à valider
 
-Le catalogue s'appuie sur les textes cités, mais il doit être confirmé par un praticien avant la production :
+**Validé par un avocat**
 
-1. **QC, jours non juridiques** (art. 82 C.p.c.) : la liste modélisée est-elle complète ? Faut-il traiter la période des fêtes de façon particulière dans certains districts ?
-2. **ON** : r. 3.01 (computation) et définition de « jour férié » (r. 1.03). Le Jour du Souvenir et le congé civique sont-ils bien à exclure pour la Cour supérieure ?
-3. **FED** : la suspension du 21 décembre au 7 janvier (Règles des Cours fédérales, r. 6(3)) **n'est pas modélisée**.
-4. **Délais du catalogue** :
-   - 15 jours pour la réponse à l'assignation (art. 145) ;
-   - 45 jours pour le protocole de l'instance (art. 149) ;
-   - 6 mois ou 1 an pour la mise en état (art. 173), avec la date de départ exacte à confirmer ;
-   - 30 jours pour l'appel (art. 360) ;
-   - 2 et 15 ans pour la prescription en Ontario ;
-   - 20 jours pour la défense (r. 18.01) ;
-   - 5 ans pour le rejet pour retard (r. 48.14) ;
-   - 30 jours pour le contrôle judiciaire (par. 18.1(2)).
-5. **Autres provinces** : seul le socle national est modélisé. Lesquelles prioriser (C.-B., Alberta…) ?
+| Ressort | Ce qui est modélisé |
+|---|---|
+| Québec | Jours non juridiques (art. 82 C.p.c.) : samedis, jours fériés de l'art. 61 de la Loi d'interprétation, 26 décembre et 2 janvier. Le calcul des délais suit l'art. 83 : un délai qui expire un samedi ou un jour férié est reporté au premier jour juridique suivant. Les périodes où les tribunaux de première instance ne sont pas tenus de siéger (30 juin – 1er sept., 20 déc. – 7 janv.) sont **signalées** sur les audiences et les délais de procédure, mais **ne suspendent pas** les délais. |
+| Québec | Mise en état (art. 173 C.p.c.) : 6 mois (1 an en matière familiale) à compter du protocole présumé accepté, ou accepté ou établi par le tribunal. À défaut de protocole déposé dans le délai, le délai court à compter de la signification de la demande. C'est un **délai de rigueur**. |
+| Ontario | Civic Holiday et Remembrance Day sont des « holidays » (r. 1.03) : ils sont exclus et entraînent le report de l'échéance (r. 3.01). |
+| Fédéral | Vacances de Noël du 21 décembre au 7 janvier inclusivement, **non comptées** (suspension) pour les délais fixés par les Règles pour déposer, modifier, transmettre ou signifier un document (r. 6(3)), sauf directive contraire de la Cour. |
+
+**Encore à valider**
+
+1. **Fédéral, contrôle judiciaire (par. 18.1(2) de la Loi sur les Cours fédérales)** : ce délai est fixé par la Loi et non par les Règles. Par prudence, CaseForge **ne déduit pas** les vacances de Noël. Faut-il maintenir ce choix ?
+2. **Ontario, r. 3.01(1)(b)** : le moteur exclut les jours fériés pour les délais de **moins de 7 jours**, selon notre lecture du texte. Votre note mentionne « 7 jours ou moins ». Lequel retenir ?
+3. **Colombie-Britannique et Alberta** : calendriers établis d'après les lois d'interprétation provinciales, avec leurs délais de base (prescriptions de 2 ans et ultimes, réponse et défense). Ils sont signalés « à valider » dans l'interface.
+4. **Autres délais du catalogue** non encore confirmés : art. 145, 149 et 360 C.p.c. ; art. 2925 et 2929 C.c.Q. ; prescription et règles 18.01, 61.04 et 48.14 en Ontario.
+5. **Autres provinces** : jours fériés nationaux et fins de semaine seulement, pour l'instant.
 
 ## Feuille de route suggérée
 

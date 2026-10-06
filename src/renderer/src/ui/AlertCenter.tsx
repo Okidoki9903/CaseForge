@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ALERT_COLORS, type DeadlineAlert } from '@shared/domain/alerts';
+import { courtRecess } from '@shared/domain/calendar';
 import type { Derived } from '../store/useDerived';
 import { useFirm } from '../store/useFirm';
 import { longDate } from '../lib/format';
@@ -43,6 +44,7 @@ export function AlertCard({ alert: a, derived, compact = false }: { alert: Deadl
   const [initials, setInitials] = useState(derived.staffById.get(currentStaffId)?.initials ?? '');
   const assignee = derived.staffById.get(a.deadline.assignedTo);
   const color = ALERT_COLORS[a.level];
+  const recess = a.deadline.kind === 'interne' ? null : courtRecess(a.matter.jurisdiction, a.deadline.dueDate);
 
   return (
     <article className="rounded-xl border border-white bg-white/90 p-3 shadow-sm" style={{ borderLeft: `4px solid ${color}` }}>
@@ -64,6 +66,7 @@ export function AlertCard({ alert: a, derived, compact = false }: { alert: Deadl
         {a.deadline.legalBasis && (<><dt>§</dt><dd>{a.deadline.legalBasis}</dd></>)}
         <dt>👤</dt>
         <dd>{t('alerts.assigned')} : {assignee?.name ?? '—'}</dd>
+        {recess && (<><dt>ℹ️</dt><dd>{t(`recess.${recess}`)}</dd></>)}
       </dl>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

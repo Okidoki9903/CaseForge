@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { easterSunday } from './dates';
-import { holidaysFor, isNonJuridicalDay, juridicalDaysUntil, nextJuridicalDay } from './calendar';
+import {
+  calendarStatus, courtRecess, holidaysFor, isFederalChristmasRecess, isNonJuridicalDay, juridicalDaysUntil, nextJuridicalDay,
+} from './calendar';
 
 describe('calendrier judiciaire', () => {
   it('calcule Pâques', () => {
@@ -49,5 +51,33 @@ describe('calendrier judiciaire', () => {
     expect(juridicalDaysUntil('2026-10-09', '2026-10-13', 'QC')).toBe(1);
     expect(juridicalDaysUntil('2026-10-13', '2026-10-13', 'QC')).toBe(0);
     expect(juridicalDaysUntil('2026-10-14', '2026-10-13', 'QC')).toBe(-1);
+  });
+
+  it('Ontario : Civic Holiday et Remembrance Day sont des « holidays » (r. 1.03)', () => {
+    expect(isNonJuridicalDay('2026-08-03', 'ON')).toBe(true);
+    expect(isNonJuridicalDay('2026-11-11', 'ON')).toBe(true);
+  });
+
+  it('Québec : périodes de non-siège signalées sans être des jours non juridiques', () => {
+    expect(courtRecess('QC', '2026-07-15')).toBe('ete');
+    expect(courtRecess('QC', '2027-01-05')).toBe('fetes');
+    expect(courtRecess('QC', '2026-09-02')).toBeNull();
+    expect(courtRecess('ON', '2026-07-15')).toBeNull();
+    expect(isNonJuridicalDay('2026-07-15', 'QC')).toBe(false);
+  });
+
+  it('Fédéral : vacances de Noël du 21 déc. au 7 janv. inclusivement', () => {
+    expect(isFederalChristmasRecess('2026-12-20')).toBe(false);
+    expect(isFederalChristmasRecess('2026-12-21')).toBe(true);
+    expect(isFederalChristmasRecess('2027-01-07')).toBe(true);
+    expect(isFederalChristmasRecess('2027-01-08')).toBe(false);
+  });
+
+  it('C.-B. et Alberta : calendriers modélisés, à valider', () => {
+    expect(holidaysFor('BC', 2026).map((h) => h.date)).toEqual(expect.arrayContaining(['2026-08-03', '2026-09-30', '2026-02-16']));
+    expect(holidaysFor('AB', 2026).map((h) => h.date)).toContain('2026-02-16');
+    expect(calendarStatus('BC')).toBe('a_valider');
+    expect(calendarStatus('QC')).toBe('valide');
+    expect(calendarStatus('MB')).toBe('socle');
   });
 });

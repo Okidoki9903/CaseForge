@@ -83,6 +83,11 @@ export const en: Messages = {
     existingClient: 'Existing client',
     match: '{{score}}% match',
   },
+  recess: {
+    ete: 'Summer period when the court is not required to sit (June 30 – Sept. 1) — the time limit still runs (art. 83 C.C.P.).',
+    fetes: 'Holiday period when the court is not required to sit (Dec. 20 – Jan. 7) — the time limit still runs (art. 83 C.C.P.).',
+  },
+  calendar: { valide: 'Calendar validated', a_valider: 'Calendar pending validation', socle: 'National holidays only' },
   pipelineBar: { title: 'Production pipeline' },
   legend: { title: 'Legend' },
   actions: { close: 'Close', reset: 'Reset demo', search: 'Conflicts', alerts: 'Alerts' },

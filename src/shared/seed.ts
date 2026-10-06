@@ -102,7 +102,7 @@ const MATTERS: MatterSpec[] = [
     deadlines: [['interne', 'Résolutions du conseil', 12, null, 'st-09']] },
   { title: 'Convention entre actionnaires — Horizon', client: 'p-c07', area: 'pa-aff', resp: 'st-04', team: ['st-09'], stage: 'conflits', juris: 'QC', court: null, fee: 'forfait', budget: 1_200_000, openedDaysAgo: 3, adverse: [],
     deadlines: [['interne', 'Vérification de conflits à compléter', 1, null, 'st-04']] },
-  { title: 'Bail commercial — Maple Ridge (Toronto)', client: 'p-c08', area: 'pa-aff', resp: 'st-04', team: [], stage: 'ouverture', juris: 'ON', court: null, fee: 'horaire', budget: 900_000, openedDaysAgo: 1, adverse: [],
+  { title: 'Bail commercial — Maple Ridge (Vancouver)', client: 'p-c08', area: 'pa-aff', resp: 'st-04', team: [], stage: 'ouverture', juris: 'BC', court: null, fee: 'horaire', budget: 900_000, openedDaysAgo: 1, adverse: [],
     deadlines: [] },
   { title: 'Grief — congédiement déguisé', client: 'p-c05', area: 'pa-trv', resp: 'st-05', team: [], stage: 'audience', juris: 'QC', court: 'p-t02', fee: 'horaire', budget: 2_800_000, openedDaysAgo: 210, adverse: ['p-a05'],
     deadlines: [['audience', 'Audience au TAT', 8, null, 'st-05'], ['procedure', 'Communication de la preuve documentaire', 2, null, 'st-05']] },

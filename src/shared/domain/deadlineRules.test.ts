@@ -48,6 +48,34 @@ describe('calcul des délais', () => {
   it('FED — contrôle judiciaire 30 jours', () => {
     const c = computeDeadline(rule('FED_JUDICIAL_REVIEW'), '2026-09-01');
     expect(c.rawDate).toBe('2026-10-01');
-    expect(c.reasoning.at(-1)).toContain('18.1(2)');
+    expect(c.reasoning.join(' ')).toContain('18.1(2)');
+  });
+
+  it('FED — r. 6(3) : les vacances de Noël ne sont pas comptées (r. 306)', () => {
+    // 11–20 déc. = 10 jours ; 21 déc.–7 janv. suspendus ; 8–27 janv. = 20 jours
+    const c = computeDeadline(rule('FED_AFFIDAVITS_DEMANDEUR'), '2026-12-10');
+    expect(c.rawDate).toBe('2027-01-27');
+    expect(c.reasoning.join(' ')).toContain('18 jour(s)');
+  });
+
+  it('FED — contrôle judiciaire (délai de la Loi) : pas de suspension, par prudence', () => {
+    const c = computeDeadline(rule('FED_JUDICIAL_REVIEW'), '2026-12-10');
+    expect(c.rawDate).toBe('2027-01-09'); // samedi
+    expect(c.dueDate).toBe('2027-01-11');
+  });
+
+  it('QC — art. 173 : délai de rigueur de 6 mois, validé', () => {
+    const r = rule('QC_MISE_EN_ETAT');
+    expect(r.strict && r.validated).toBe(true);
+    const c = computeDeadline(r, '2026-04-15');
+    expect(c.rawDate).toBe('2026-10-15');
+    expect(c.reasoning.join(' ')).toContain('Délai de rigueur');
+    expect(c.reasoning.join(' ')).not.toContain('à faire valider');
+  });
+
+  it('QC — la période estivale de non-siège ne suspend pas le délai (art. 83)', () => {
+    const c = computeDeadline(rule('QC_REPONSE_ASSIGNATION'), '2026-07-02');
+    expect(c.rawDate).toBe('2026-07-17');
+    expect(c.dueDate).toBe('2026-07-17');
   });
 });
