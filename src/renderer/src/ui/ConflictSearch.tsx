@@ -11,15 +11,12 @@ import { normalizedQuery, searchConflicts } from '@shared/domain/conflicts';
 import type { ConflictCheck, Id } from '@shared/types';
 import type { Derived } from '../store/useDerived';
 import { useFirm } from '../store/useFirm';
-import { intlLocale } from '../i18n';
+import { formatWhen } from '../lib/format';
 import { Icon } from './primitives';
 import { ConflictStatusSelect } from './ConflictStatusSelect';
 
 /** Délai d'inactivité avant l'enregistrement automatique. */
 const RECORD_AFTER_MS = 1200;
-
-export const formatWhen = (iso: string) =>
-  new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 
 export function ConflictSearch({ derived }: { derived: Derived }) {
   const { t } = useTranslation();

@@ -66,11 +66,19 @@ describe('dépôt SQLite', () => {
     expect(JSON.parse(log[0].details_json)).toEqual({ from: 'wip', to: 'facture' });
   });
 
-  it('changement d’étape contrôlé', () => {
-    const { repo } = freshRepo();
-    repo.setMatterStage('m-001', 'cloture');
+  it('changement d’étape contrôlé et journalisé (qui + quand)', () => {
+    const { repo, db } = freshRepo();
+    repo.setMatterStage('m-001', 'cloture', 'hb');
     expect(repo.getSnapshot().matters.find((m) => m.id === 'm-001')?.stage).toBe('cloture');
-    expect(() => repo.setMatterStage('m-001', 'inconnue' as never)).toThrow();
+    // Même étape : aucune écriture au journal.
+    repo.setMatterStage('m-001', 'cloture', 'HB');
+    expect(() => repo.setMatterStage('m-001', 'inconnue' as never, 'HB')).toThrow();
+    expect(() => repo.setMatterStage('m-001', 'depot', '')).toThrow();
+    const log = repo.getSnapshot().auditLog.filter((a) => a.action === 'set_stage');
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ actor: 'HB', entity: 'matter', entityId: 'm-001', details: { from: 'audience', to: 'cloture' } });
+    expect(Number.isNaN(Date.parse(log[0].at))).toBe(false);
+    expect((db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'set_stage'").get() as { n: number }).n).toBe(1);
   });
 
   it('migration v1 → v2 conserve les vérifications existantes', () => {

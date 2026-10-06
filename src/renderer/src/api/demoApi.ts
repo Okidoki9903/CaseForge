@@ -9,7 +9,7 @@ import { localToday } from '@shared/domain/dates';
 import { assertStatusTransition, roundBillableMinutes } from '@shared/domain/time';
 import { normalizeInitials } from '@shared/domain/validation';
 import { initialConflictStatus, normalizeName, searchConflicts, toCheckHits } from '@shared/domain/conflicts';
-import { CONFLICT_STATUSES, type ConflictCheck } from '@shared/types';
+import { CONFLICT_STATUSES, PIPELINE_STAGES, type ConflictCheck } from '@shared/types';
 
 const DB_NAME = 'caseforge-demo';
 const STORE = 'kv';
@@ -59,6 +59,7 @@ export function createDemoApi(): CaseForgeApi {
     }
     // Données enregistrées par une version antérieure : champs ajoutés depuis.
     memory.conflictChecks ??= [];
+    memory.auditLog ??= [];
     return memory;
   };
   const save = async (s: FirmSnapshot) => {
@@ -68,6 +69,12 @@ export function createDemoApi(): CaseForgeApi {
     } catch {
       /* mémoire seulement */
     }
+  };
+  /** Journal d'audit (même format que la table SQLite `audit_log`). */
+  const audit = (s: FirmSnapshot, actor: string, action: string, entity: string, entityId: string, details: Record<string, unknown> = {}) => {
+    const id = (s.auditLog[0]?.id ?? 0) + 1;
+    s.auditLog.unshift({ id, at: new Date().toISOString(), actor, action, entity, entityId, details });
+    s.auditLog.length = Math.min(s.auditLog.length, 500);
   };
   const mutate = async (fn: (s: FirmSnapshot) => void) => {
     const s = structuredClone(await load());
@@ -84,6 +91,7 @@ export function createDemoApi(): CaseForgeApi {
         if (!d) throw new Error('Échéance introuvable ou déjà fermée.');
         d.acknowledgedBy = normalizeInitials(initials);
         d.acknowledgedAt = new Date().toISOString();
+        audit(s, d.acknowledgedBy, 'acknowledge', 'deadline', id);
       }),
     completeDeadline: (id) =>
       mutate((s) => {
@@ -92,10 +100,14 @@ export function createDemoApi(): CaseForgeApi {
         d.status = 'complete';
         d.completedAt = new Date().toISOString();
       }),
-    setMatterStage: (id, stage) =>
+    setMatterStage: (id, stage, actor) =>
       mutate((s) => {
+        const who = normalizeInitials(actor);
+        if (!PIPELINE_STAGES.includes(stage)) throw new Error(`Étape inconnue : ${stage}`);
         const m = s.matters.find((x) => x.id === id);
         if (!m) throw new Error('Dossier introuvable.');
+        if (m.stage === stage) return;
+        audit(s, who, 'set_stage', 'matter', id, { from: m.stage, to: stage });
         m.stage = stage;
       }),
     addTimeEntry: async (e) => {
@@ -124,10 +136,11 @@ export function createDemoApi(): CaseForgeApi {
     },
     setTimeEntryStatus: (id, status, actor) =>
       mutate((s) => {
-        normalizeInitials(actor);
+        const who = normalizeInitials(actor);
         const t = s.timeEntries.find((x) => x.id === id);
         if (!t) throw new Error('Entrée de temps introuvable.');
         assertStatusTransition(t.status, status);
+        audit(s, who, 'set_time_status', 'time_entry', id, { from: t.status, to: status });
         t.status = status;
       }),
     saveTextFile: async (name, content) => {
@@ -153,6 +166,7 @@ export function createDemoApi(): CaseForgeApi {
           status: initialConflictStatus(hits), matterId, hits, updatedAt: null, updatedBy: null,
         };
         s.conflictChecks.unshift(created);
+        audit(s, who, 'conflict_check', 'conflict_check', created.id, { query: q, hits: hits.length, status: created.status });
       });
       return created!;
     },
@@ -161,6 +175,7 @@ export function createDemoApi(): CaseForgeApi {
         const who = normalizeInitials(actor);
         const c = s.conflictChecks.find((x) => x.id === id);
         if (!c) throw new Error('Vérification introuvable.');
+        const from = { status: c.status, matterId: c.matterId };
         if (patch.status !== undefined) {
           if (!CONFLICT_STATUSES.includes(patch.status)) throw new Error('Statut invalide.');
           c.status = patch.status;
@@ -171,6 +186,7 @@ export function createDemoApi(): CaseForgeApi {
         }
         c.updatedAt = new Date().toISOString();
         c.updatedBy = who;
+        audit(s, who, 'update_conflict_check', 'conflict_check', id, { from, to: { status: c.status, matterId: c.matterId } });
       }),
     resetDemoData: () => save(buildDemoSnapshot(localToday())),
   };

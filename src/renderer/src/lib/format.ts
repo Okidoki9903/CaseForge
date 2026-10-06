@@ -21,3 +21,7 @@ export const longDate = (iso: IsoDate) =>
   new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(
     parseIsoDate(iso),
   );
+
+/** Horodatage lisible (« 6 oct. 2026, 06 h 33 »), dans le fuseau du poste. */
+export const formatWhen = (iso: string) =>
+  new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));

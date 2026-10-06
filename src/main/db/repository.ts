@@ -14,6 +14,9 @@ import { MIGRATIONS } from './migrations';
 
 type Row = Record<string, any>;
 
+/** Nombre d'entrées d'audit transmises à l'interface. */
+const AUDIT_IN_SNAPSHOT = 500;
+
 export function migrate(db: Database.Database): void {
   const current = db.pragma('user_version', { simple: true }) as number;
   for (let v = current; v < MIGRATIONS.length; v++) {
@@ -86,6 +89,10 @@ export class Repository {
         filePath: r.file_path, addedAt: r.added_at,
       })),
       conflictChecks: all('SELECT * FROM conflict_checks ORDER BY performed_at DESC').map(rowToCheck),
+      auditLog: all(`SELECT * FROM audit_log ORDER BY id DESC LIMIT ${AUDIT_IN_SNAPSHOT}`).map((r) => ({
+        id: r.id, at: r.at, actor: r.actor, action: r.action, entity: r.entity, entityId: r.entity_id,
+        details: JSON.parse(r.details_json),
+      })),
     };
   }
 
@@ -165,13 +172,15 @@ export class Repository {
     })();
   }
 
-  setMatterStage(id: Id, stage: PipelineStage): void {
+  setMatterStage(id: Id, stage: PipelineStage, actor: string): void {
+    const who = normalizeInitials(actor);
     if (!PIPELINE_STAGES.includes(stage)) throw new Error(`Étape inconnue : ${stage}`);
     this.db.transaction(() => {
       const prev = this.db.prepare('SELECT stage FROM matters WHERE id = ?').get(id) as Row | undefined;
       if (!prev) throw new Error('Dossier introuvable.');
+      if (prev.stage === stage) return; // aucun changement : rien à journaliser
       this.db.prepare('UPDATE matters SET stage = ? WHERE id = ?').run(stage, id);
-      this.audit('local', 'set_stage', 'matter', id, { from: prev.stage, to: stage });
+      this.audit(who, 'set_stage', 'matter', id, { from: prev.stage, to: stage });
     })();
   }
 

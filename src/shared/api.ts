@@ -16,7 +16,8 @@ export interface CaseForgeApi {
   /** Accusé de réception d'une alerte d'échéance (journalisé). */
   acknowledgeDeadline(deadlineId: Id, initials: string): Promise<void>;
   completeDeadline(deadlineId: Id): Promise<void>;
-  setMatterStage(matterId: Id, stage: PipelineStage): Promise<void>;
+  /** Change l'étape du dossier ; journalisé avec les initiales de l'auteur (qui + quand). */
+  setMatterStage(matterId: Id, stage: PipelineStage, actor: string): Promise<void>;
   /** Durée arrondie au dixième d'heure supérieur ; taux du collaborateur figé à la saisie. */
   addTimeEntry(entry: NewTimeEntry): Promise<TimeEntry>;
   /** wip → facture | radie, ou retour à wip ; journalisé avec les initiales de l'auteur. */

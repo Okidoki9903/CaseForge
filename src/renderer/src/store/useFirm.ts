@@ -125,7 +125,7 @@ export const useFirm = create<FirmState>((set, get) => {
       await run(() => api.completeDeadline(id));
     },
     setStage: async (id, stage) => {
-      await run(() => api.setMatterStage(id, stage));
+      await run(() => api.setMatterStage(id, stage, get().actor()));
     },
     logMinutes: (matterId, minutes, description, billable = true) =>
       run(() =>

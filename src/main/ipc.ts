@@ -27,8 +27,8 @@ export function registerIpc(repo: Repository, onDataChanged: () => void): void {
     onDataChanged();
   });
 
-  ipcMain.handle(IPC.setMatterStage, (_e, id: unknown, stage: unknown) => {
-    repo.setMatterStage(str(id, 'id'), str(stage, 'stage') as PipelineStage);
+  ipcMain.handle(IPC.setMatterStage, (_e, id: unknown, stage: unknown, actor: unknown) => {
+    repo.setMatterStage(str(id, 'id'), str(stage, 'stage') as PipelineStage, str(actor, 'actor'));
   });
 
   ipcMain.handle(IPC.addTimeEntry, (_e, entry: NewTimeEntry) => {

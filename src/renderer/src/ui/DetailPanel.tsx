@@ -9,12 +9,13 @@ import { areaStats, matterFinancials } from '@shared/domain/metrics';
 import { calendarStatus } from '@shared/domain/calendar';
 import type { Derived } from '../store/useDerived';
 import { useFirm } from '../store/useFirm';
-import { hours, money, percent } from '../lib/format';
+import { formatWhen, hours, money, percent } from '../lib/format';
 import { LOAD_COLORS, ROLE_COLORS, STAGE_COLORS } from '../scene/palette';
 import { AlertCard } from './AlertCenter';
 import { TimePanel } from './TimePanel';
 import { History } from './ConflictSearch';
 import { CONFLICT_COLORS } from './conflictStyles';
+import { MATTER_DND_TYPE } from '../lib/dnd';
 import { Bar, Icon, IconButton, LevelBadge, Section, Stat } from './primitives';
 
 export function DetailPanel({ derived }: { derived: Derived }) {
@@ -82,6 +83,17 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
   return (
     <>
       <Header eyebrow={`${m.number} · ${area.name}`} title={m.title} color={area.color}>
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData(MATTER_DND_TYPE, m.id);
+            e.dataTransfer.effectAllowed = 'move';
+          }}
+          title={t('matter.dragHint')}
+          className="mt-1.5 inline-flex cursor-grab items-center gap-1.5 rounded-full border border-dashed border-[var(--color-line)] bg-white px-2 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] active:cursor-grabbing"
+        >
+          ⠿ {m.number} · {t('matter.dragHint')}
+        </div>
         <dl className="mt-2 grid grid-cols-[80px_1fr] gap-y-0.5 text-xs">
           <dt className="text-[var(--color-muted)]">{t('matter.client')}</dt>
           <dd>
@@ -194,7 +206,41 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
           ))}
         </ul>
       </Section>
+
+      <MatterHistory matterId={m.id} derived={derived} />
     </>
+  );
+}
+
+/** Journal d'audit du dossier et de ses échéances : qui a fait quoi, quand. */
+function MatterHistory({ matterId, derived }: { matterId: string; derived: Derived }) {
+  const { t } = useTranslation();
+  const deadlineIds = new Set(derived.snapshot.deadlines.filter((d) => d.matterId === matterId).map((d) => d.id));
+  const entries = derived.snapshot.auditLog
+    .filter((a) => (a.entity === 'matter' && a.entityId === matterId) || (a.entity === 'deadline' && deadlineIds.has(a.entityId)))
+    .slice(0, 20);
+  const label = (a: (typeof entries)[number]) => {
+    if (a.action === 'set_stage') {
+      return t('audit.set_stage', { from: t(`stage.${String(a.details.from)}`), to: t(`stage.${String(a.details.to)}`) });
+    }
+    return t(`audit.${a.action}`, { defaultValue: a.action });
+  };
+  return (
+    <Section title={t('audit.title')}>
+      {entries.length === 0 ? (
+        <p className="text-xs text-[var(--color-muted)]">{t('audit.empty')}</p>
+      ) : (
+        <ol className="space-y-1">
+          {entries.map((a) => (
+            <li key={a.id} className="flex items-baseline gap-2 text-xs">
+              <span className="grid h-5 w-7 shrink-0 place-items-center rounded bg-slate-200 text-[9px] font-bold">{a.actor}</span>
+              <span className="flex-1">{label(a)}</span>
+              <span className="shrink-0 text-[10px] text-[var(--color-muted)]">{formatWhen(a.at)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Section>
   );
 }
 

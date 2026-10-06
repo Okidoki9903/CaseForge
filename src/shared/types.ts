@@ -177,6 +177,17 @@ export interface ConflictCheck {
   updatedBy: string | null;
 }
 
+/** Entrée du journal d'audit : qui a fait quoi, quand. */
+export interface AuditEntry {
+  id: number;
+  at: IsoDateTime;
+  actor: string;
+  action: string;
+  entity: string;
+  entityId: Id;
+  details: Record<string, unknown>;
+}
+
 /** Instantané complet des données : un cabinet de taille petite/moyenne tient en mémoire. */
 export interface FirmSnapshot {
   firmName: string;
@@ -190,6 +201,8 @@ export interface FirmSnapshot {
   invoices: Invoice[];
   documents: MatterDocument[];
   conflictChecks: ConflictCheck[];
+  /** Entrées d'audit les plus récentes (les plus récentes d'abord). */
+  auditLog: AuditEntry[];
 }
 
 /** Entrée de saisie de temps (sans id ni statut). */

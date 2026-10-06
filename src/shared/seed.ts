@@ -250,5 +250,6 @@ export function buildDemoSnapshot(today: string): FirmSnapshot {
     invoices,
     documents,
     conflictChecks: [],
+    auditLog: [],
   };
 }
