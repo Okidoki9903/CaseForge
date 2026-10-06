@@ -9,7 +9,7 @@ import { areaStats, matterFinancials } from '@shared/domain/metrics';
 import { calendarStatus } from '@shared/domain/calendar';
 import type { Derived } from '../store/useDerived';
 import { useFirm } from '../store/useFirm';
-import { formatWhen, hours, money, percent } from '../lib/format';
+import { formatWhen, hours, longDate, money, moneyWhole, percent } from '../lib/format';
 import { LOAD_COLORS, ROLE_COLORS, STAGE_COLORS } from '../scene/palette';
 import { AlertCard } from './AlertCenter';
 import { TimePanel } from './TimePanel';
@@ -17,7 +17,7 @@ import { NewDeadline } from './NewDeadline';
 import { History } from './ConflictSearch';
 import { CONFLICT_COLORS } from './conflictStyles';
 import { MATTER_DND_TYPE } from '../lib/dnd';
-import { Bar, Icon, IconButton, LevelBadge, Section, Stat } from './primitives';
+import { Bar, Countdown, Icon, IconButton, LevelBadge, Section, Stat } from './primitives';
 
 export function DetailPanel({ derived }: { derived: Derived }) {
   const { t } = useTranslation();
@@ -45,7 +45,7 @@ export function DetailPanel({ derived }: { derived: Derived }) {
   return (
     <aside
       key={`${selection.kind}-${selection.id}`}
-      className="glass animate-panel pointer-events-auto absolute bottom-24 left-3 top-[var(--hud-top)] z-30 flex w-[380px] flex-col overflow-hidden rounded-2xl"
+      className="card animate-panel pointer-events-auto absolute bottom-3 right-4 top-[var(--hud-top)] z-30 flex w-[400px] flex-col overflow-hidden rounded-3xl"
     >
       <div className="absolute right-2 top-2 z-10 rounded-lg bg-white/90 shadow-sm backdrop-blur">
         <IconButton onClick={() => select(null)} title={t('actions.close')}><Icon.close /></IconButton>
@@ -67,24 +67,54 @@ function Header({ eyebrow, title, color, children }: { eyebrow: string; title: s
 
 /* ─────────────────────────── Dossier ─────────────────────────── */
 
+type MatterTab = 'overview' | 'tasks' | 'time' | 'documents';
+
+/** Ligne « argent » : libellé, montant en gros, détail. */
+function MoneyLine({ label, value, detail, tone, strong }: { label: string; value: string; detail?: ReactNode; tone?: string; strong?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-[12px] text-slate-500">{label}</span>
+      <span className="text-right">
+        <span className={`tabular font-extrabold tracking-tight ${strong ? 'text-[22px]' : 'text-[15px]'}`} style={{ color: tone ?? 'var(--color-ink)' }}>{value}</span>
+        {detail && <span className="block text-[10px] text-[var(--color-muted)]">{detail}</span>}
+      </span>
+    </div>
+  );
+}
+
 function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived }) {
   const { t } = useTranslation();
+  const [tab, setTab] = useState<MatterTab>('overview');
   const [addingDeadline, setAddingDeadline] = useState(false);
   const setStage = useFirm((s) => s.setStage);
   const select = useFirm((s) => s.select);
   const { snapshot } = derived;
   const area = derived.areaById.get(m.practiceAreaId)!;
   const client = derived.partyById.get(m.clientId);
+  const responsible = derived.staffById.get(m.responsibleId);
   const fin = matterFinancials(m, snapshot);
   const alerts = derived.alertsByMatter.get(m.id) ?? [];
+  const next = alerts.reduce<(typeof alerts)[number] | undefined>((best, a) => (!best || a.daysLeft < best.daysLeft ? a : best), undefined);
   const stageIndex = PIPELINE_STAGES.indexOf(m.stage);
   const docs = snapshot.documents.filter((d) => d.matterId === m.id);
   const team = [m.responsibleId, ...m.teamIds].map((id) => derived.staffById.get(id)).filter((p): p is Staff => Boolean(p));
   const marginTone = fin.marginRate >= 0.35 ? ALERT_COLORS.ok : fin.marginRate >= 0.15 ? ALERT_COLORS.attention : ALERT_COLORS.critique;
+  const flag = derived.conflicts.get(m.id);
+  const tabs: { id: MatterTab; label: string; badge?: number }[] = [
+    { id: 'overview', label: t('panel.overview') },
+    { id: 'tasks', label: t('panel.tasks'), badge: alerts.length },
+    { id: 'time', label: t('panel.time') },
+    { id: 'documents', label: t('panel.documents'), badge: docs.length },
+  ];
 
   return (
     <>
-      <Header eyebrow={`${m.number} · ${area.name}`} title={m.title} color={area.color}>
+      <header className="px-5 pb-3 pt-4">
+        <div className="flex items-center gap-2 pr-8 text-[11px] font-semibold">
+          <span className="rounded-md px-1.5 py-0.5" style={{ background: `${area.color}1a`, color: area.color }}>{area.name}</span>
+          <span className="tabular text-[var(--color-muted)]">{m.number}</span>
+        </div>
+        <h2 className="mt-1.5 pr-8 text-[19px] font-extrabold leading-tight tracking-tight text-[#1f2a44]">{m.title}</h2>
         <div
           draggable
           onDragStart={(e) => {
@@ -94,136 +124,241 @@ function MatterDetail({ matter: m, derived }: { matter: Matter; derived: Derived
           title={t('matter.dragHint')}
           className="mt-1.5 inline-flex cursor-grab items-center gap-1.5 rounded-full border border-dashed border-[var(--color-line)] bg-white px-2 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] active:cursor-grabbing"
         >
-          ⠿ {m.number} · {t('matter.dragHint')}
+          ⠿ {t('matter.dragHint')}
         </div>
-        <dl className="mt-2 grid grid-cols-[80px_1fr] gap-y-0.5 text-xs">
-          <dt className="text-[var(--color-muted)]">{t('matter.client')}</dt>
-          <dd>
-            <button type="button" className="font-medium hover:underline" onClick={() => client && select({ kind: 'party', id: client.id })}>
-              {client?.name}
-            </button>
-          </dd>
-          {m.court && (
-            <>
-              <dt className="text-[var(--color-muted)]">{t('matter.court')}</dt>
-              <dd>{m.court}{m.courtFileNumber && <span className="text-[var(--color-muted)]"> · {m.courtFileNumber}</span>}</dd>
-            </>
-          )}
-          <dt className="text-[var(--color-muted)]">Mandat</dt>
-          <dd>
-            {t(`fee.${m.feeArrangement}`)} · {m.jurisdiction}{' '}
-            <span
-              className={`ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                calendarStatus(m.jurisdiction) === 'valide' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+        {flag && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white" style={{ background: CONFLICT_COLORS[flag.status] }}>
+            <Icon.alert /> {t('conflicts.flagged')} — {t(`conflicts.status.${flag.status}`)}
+          </div>
+        )}
+        <div className="mt-3 flex gap-1 rounded-xl bg-slate-100/80 p-1" role="tablist">
+          {tabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === x.id}
+              onClick={() => setTab(x.id)}
+              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-[12px] font-semibold transition ${
+                tab === x.id ? 'bg-white text-[#1f2a44] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {t(`calendar.${calendarStatus(m.jurisdiction)}`)}
-            </span>
-          </dd>
-        </dl>
-      </Header>
+              {x.label}
+              {x.badge ? <span className="tabular rounded-full bg-slate-200 px-1.5 text-[10px] text-slate-600">{x.badge}</span> : null}
+            </button>
+          ))}
+        </div>
+      </header>
 
-      <MatterConflicts matterId={m.id} derived={derived} />
+      {tab === 'overview' && (
+        <>
+          <div className="space-y-3 px-5 pb-4">
+            <dl className="grid grid-cols-[96px_1fr] items-center gap-y-2 text-[12px]">
+              <dt className="text-slate-500">{t('matter.client')}</dt>
+              <dd>
+                <button type="button" className="font-semibold text-[#1f2a44] hover:underline" onClick={() => client && select({ kind: 'party', id: client.id })}>
+                  {client?.name}
+                </button>
+              </dd>
+              <dt className="text-slate-500">{t('panel.responsible')}</dt>
+              <dd>
+                {responsible && (
+                  <button type="button" onClick={() => select({ kind: 'staff', id: responsible.id })} className="flex items-center gap-1.5 font-semibold hover:underline">
+                    <span className="grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: ROLE_COLORS[responsible.role] }}>{responsible.initials}</span>
+                    {responsible.name.replace(/^Me /, '')}
+                  </button>
+                )}
+              </dd>
+              <dt className="text-slate-500">{t('panel.stage')}</dt>
+              <dd>
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${STAGE_COLORS[stageIndex]}26`, color: '#1f2a44' }}>
+                  {stageIndex + 1}/{PIPELINE_STAGES.length} · {t(`stage.${m.stage}`)}
+                </span>
+              </dd>
+              {m.court && (
+                <>
+                  <dt className="text-slate-500">{t('matter.court')}</dt>
+                  <dd>{m.court}{m.courtFileNumber && <span className="text-[var(--color-muted)]"> · {m.courtFileNumber}</span>}</dd>
+                </>
+              )}
+              <dt className="text-slate-500">{t('panel.mandate')}</dt>
+              <dd>
+                {t(`fee.${m.feeArrangement}`)} · {m.jurisdiction}{' '}
+                <span
+                  className={`ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                    calendarStatus(m.jurisdiction) === 'valide' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  {t(`calendar.${calendarStatus(m.jurisdiction)}`)}
+                </span>
+              </dd>
+            </dl>
 
-      <Section title={t('matter.pipeline')}>
-        <div className="flex items-center gap-1">
-          <IconButton title={t('matter.prev')} onClick={() => stageIndex > 0 && void setStage(m.id, PIPELINE_STAGES[stageIndex - 1])}><Icon.left /></IconButton>
-          <ol className="flex flex-1 items-center">
-            {PIPELINE_STAGES.map((s, i) => (
-              <li key={s} className="flex flex-1 items-center" title={t(`stage.${s}`)}>
-                <button
-                  type="button"
-                  onClick={() => void setStage(m.id, s)}
-                  className="h-3 w-3 shrink-0 rounded-full border-2 transition hover:scale-125"
-                  style={{ background: i <= stageIndex ? STAGE_COLORS[i] : 'white', borderColor: STAGE_COLORS[i], transform: i === stageIndex ? 'scale(1.35)' : undefined }}
-                />
-                {i < PIPELINE_STAGES.length - 1 && <span className="h-0.5 flex-1" style={{ background: i < stageIndex ? STAGE_COLORS[i] : '#e2e8f0' }} />}
+            {/* Prochaine échéance */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm" style={next ? { borderLeft: `4px solid ${ALERT_COLORS[next.level]}` } : undefined}>
+              <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                {t('panel.nextDeadline')}
+                {next && (
+                  <span className="tabular rounded-full px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal text-white" style={{ background: ALERT_COLORS[next.level] }}>
+                    <Countdown daysLeft={next.daysLeft} />
+                  </span>
+                )}
+              </div>
+              {next ? (
+                <button type="button" onClick={() => setTab('tasks')} className="mt-1 block w-full text-left">
+                  <div className="text-[14px] font-bold text-[#1f2a44]">{next.deadline.title}</div>
+                  <div className="text-[11px] text-[var(--color-muted)]">{longDate(next.deadline.dueDate)}{next.deadline.legalBasis && ` · ${next.deadline.legalBasis}`}</div>
+                </button>
+              ) : (
+                <p className="mt-1 text-xs text-[var(--color-muted)]">{t('matter.noDeadlines')}</p>
+              )}
+            </div>
+
+            {/* Argent du dossier */}
+            <div className="space-y-2 rounded-2xl bg-gradient-to-br from-[#eef0ff] to-[#f6f3ff] p-3.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#3a4fd8]">{t('panel.money')}</div>
+              <MoneyLine
+                label={t('panel.wipLeft')}
+                value={moneyWhole(fin.wipCents)}
+                tone="#1f2a6b"
+                strong
+              />
+              <MoneyLine
+                label={t('panel.timeLogged')}
+                value={`${hours(fin.hours)} h`}
+                detail={t('panel.timeValue', { amount: moneyWhole(fin.workValueCents) })}
+              />
+              <MoneyLine label={t('matter.billed')} value={moneyWhole(fin.billedCents)} detail={`${t('matter.collected')} ${moneyWhole(fin.collectedCents)}`} />
+              <MoneyLine label={t('matter.margin')} value={percent(fin.marginRate)} tone={marginTone} />
+              <div className="pt-1">
+                <div className="mb-1 flex justify-between text-[11px]">
+                  <span className="text-slate-500">{t('matter.budget')}</span>
+                  <span className="tabular font-semibold">{percent(fin.budgetUsed)} · {moneyWhole(m.budgetCents)}</span>
+                </div>
+                <Bar value={fin.budgetUsed} color={fin.budgetUsed > 0.9 ? ALERT_COLORS.critique : fin.budgetUsed > 0.7 ? ALERT_COLORS.attention : ALERT_COLORS.ok} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTab('time')}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#3a4fd8] to-[#5b4fe0] text-[12px] font-semibold text-white shadow-md shadow-indigo-500/20 transition hover:brightness-110 active:scale-95"
+              >
+                <Icon.clock /> {t('panel.logTime')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('tasks');
+                  setAddingDeadline(true);
+                }}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-[12px] font-semibold text-[#1f2a44] transition hover:border-[#3a4fd8]/40 active:scale-95"
+              >
+                <Icon.calendar /> {t('panel.addDeadline')}
+              </button>
+            </div>
+          </div>
+
+          <Section title={t('matter.team')}>
+            <div className="flex flex-wrap gap-1.5">
+              {team.map((p) => {
+                const load = derived.loads.get(p.id)!;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => select({ kind: 'staff', id: p.id })}
+                    className="flex items-center gap-1.5 rounded-full border bg-white py-0.5 pl-0.5 pr-2.5 text-xs hover:shadow"
+                    style={{ borderColor: LOAD_COLORS[load.level] }}
+                  >
+                    <span className="grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: ROLE_COLORS[p.role] }}>{p.initials}</span>
+                    {p.name.replace(/^Me /, '')}
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+          <MatterConflicts matterId={m.id} derived={derived} />
+          <MatterHistory matterId={m.id} derived={derived} />
+        </>
+      )}
+
+      {tab === 'tasks' && (
+        <>
+          <Section title={t('matter.pipeline')}>
+            <div className="flex items-center gap-1">
+              <IconButton title={t('matter.prev')} onClick={() => stageIndex > 0 && void setStage(m.id, PIPELINE_STAGES[stageIndex - 1])}><Icon.left /></IconButton>
+              <ol className="flex flex-1 items-center">
+                {PIPELINE_STAGES.map((s, i) => (
+                  <li key={s} className="flex flex-1 items-center" title={t(`stage.${s}`)}>
+                    <button
+                      type="button"
+                      onClick={() => void setStage(m.id, s)}
+                      className="h-3 w-3 shrink-0 rounded-full border-2 transition hover:scale-125"
+                      style={{ background: i <= stageIndex ? STAGE_COLORS[i] : 'white', borderColor: STAGE_COLORS[i], transform: i === stageIndex ? 'scale(1.35)' : undefined }}
+                    />
+                    {i < PIPELINE_STAGES.length - 1 && <span className="h-0.5 flex-1" style={{ background: i < stageIndex ? STAGE_COLORS[i] : '#e2e8f0' }} />}
+                  </li>
+                ))}
+              </ol>
+              <IconButton title={t('matter.next')} onClick={() => stageIndex < PIPELINE_STAGES.length - 1 && void setStage(m.id, PIPELINE_STAGES[stageIndex + 1])}><Icon.right /></IconButton>
+            </div>
+            <div className="mt-1 text-center text-xs font-semibold" style={{ color: STAGE_COLORS[stageIndex] }}>
+              {stageIndex + 1}/{PIPELINE_STAGES.length} · {t(`stage.${m.stage}`)}
+            </div>
+          </Section>
+
+          <Section
+            title={t('matter.deadlines')}
+            aside={
+              !addingDeadline && (
+                <button type="button" onClick={() => setAddingDeadline(true)} className="text-[11px] font-semibold text-[var(--color-brand)] hover:underline">
+                  ＋ {t('newDeadline.button')}
+                </button>
+              )
+            }
+          >
+            {addingDeadline && (
+              <div className="mb-2">
+                <NewDeadline matter={m} derived={derived} onDone={() => setAddingDeadline(false)} />
+              </div>
+            )}
+            {alerts.length === 0 ? (
+              <p className="text-xs text-[var(--color-muted)]">{t('matter.noDeadlines')}</p>
+            ) : (
+              <div className="space-y-2">{alerts.map((a) => <AlertCard key={a.deadline.id} alert={a} derived={derived} compact />)}</div>
+            )}
+          </Section>
+        </>
+      )}
+
+      {tab === 'time' && (
+        <>
+          <div className="mx-5 mb-1 grid grid-cols-3 gap-2 rounded-2xl bg-gradient-to-br from-[#eef0ff] to-[#f6f3ff] p-3">
+            <Stat label={t('panel.timeLogged')} value={`${hours(fin.hours)} h`} />
+            <Stat label={t('matter.workValue')} value={moneyWhole(fin.workValueCents)} />
+            <Stat label={t('panel.wipLeft')} value={moneyWhole(fin.wipCents)} tone="#1f2a6b" />
+          </div>
+          <TimePanel matter={m} derived={derived} />
+        </>
+      )}
+
+      {tab === 'documents' && (
+        <Section title={`${t('matter.documents')} (${docs.length})`}>
+          {docs.length === 0 && <p className="text-xs text-[var(--color-muted)]">—</p>}
+          <ul className="space-y-1">
+            {docs.map((d) => (
+              <li key={d.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-xs hover:bg-slate-50">
+                <span className="text-[var(--color-muted)]"><Icon.file /></span>
+                {d.exhibit && <span className="rounded bg-slate-800 px-1.5 text-[10px] font-bold text-white">{d.exhibit}</span>}
+                <span className="flex-1 truncate">{d.title}</span>
+                <span className="tabular text-[10px] text-[var(--color-muted)]">{d.addedAt}</span>
               </li>
             ))}
-          </ol>
-          <IconButton title={t('matter.next')} onClick={() => stageIndex < PIPELINE_STAGES.length - 1 && void setStage(m.id, PIPELINE_STAGES[stageIndex + 1])}><Icon.right /></IconButton>
-        </div>
-        <div className="mt-1 text-center text-xs font-semibold" style={{ color: STAGE_COLORS[stageIndex] }}>
-          {stageIndex + 1}/{PIPELINE_STAGES.length} · {t(`stage.${m.stage}`)}
-        </div>
-      </Section>
-
-      <Section
-        title={t('matter.deadlines')}
-        aside={
-          !addingDeadline && (
-            <button type="button" onClick={() => setAddingDeadline(true)} className="text-[11px] font-semibold text-[var(--color-brand)] hover:underline">
-              ＋ {t('newDeadline.button')}
-            </button>
-          )
-        }
-      >
-        {addingDeadline && (
-          <div className="mb-2">
-            <NewDeadline matter={m} derived={derived} onDone={() => setAddingDeadline(false)} />
-          </div>
-        )}
-        {alerts.length === 0 ? (
-          <p className="text-xs text-[var(--color-muted)]">{t('matter.noDeadlines')}</p>
-        ) : (
-          <div className="space-y-2">{alerts.map((a) => <AlertCard key={a.deadline.id} alert={a} derived={derived} compact />)}</div>
-        )}
-      </Section>
-
-      <TimePanel matter={m} derived={derived} />
-
-      <Section title={t('matter.finances')}>
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label={t('matter.workValue')} value={money(fin.workValueCents, true)} />
-          <Stat label={t('matter.wip')} value={money(fin.wipCents, true)} />
-          <Stat label={t('matter.billed')} value={money(fin.billedCents, true)} />
-          <Stat label={t('matter.collected')} value={money(fin.collectedCents, true)} />
-          <Stat label={t('matter.margin')} value={percent(fin.marginRate)} tone={marginTone} />
-          <Stat label={t('matter.hours')} value={hours(fin.hours)} />
-        </div>
-        <div className="mt-3">
-          <div className="mb-1 flex justify-between text-[11px]">
-            <span className="text-[var(--color-muted)]">{t('matter.budget')}</span>
-            <span className="tabular font-semibold">{percent(fin.budgetUsed)} · {money(m.budgetCents, true)}</span>
-          </div>
-          <Bar value={fin.budgetUsed} color={fin.budgetUsed > 0.9 ? ALERT_COLORS.critique : fin.budgetUsed > 0.7 ? ALERT_COLORS.attention : ALERT_COLORS.ok} />
-        </div>
-      </Section>
-
-      <Section title={t('matter.team')}>
-        <div className="flex flex-wrap gap-1.5">
-          {team.map((p) => {
-            const load = derived.loads.get(p.id)!;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => select({ kind: 'staff', id: p.id })}
-                className="flex items-center gap-1.5 rounded-full border bg-white py-0.5 pl-0.5 pr-2.5 text-xs hover:shadow"
-                style={{ borderColor: LOAD_COLORS[load.level] }}
-              >
-                <span className="grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: ROLE_COLORS[p.role] }}>{p.initials}</span>
-                {p.name.replace(/^Me /, '')}
-              </button>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section title={`${t('matter.documents')} (${docs.length})`}>
-        <ul className="space-y-1">
-          {docs.map((d) => (
-            <li key={d.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-xs hover:bg-white">
-              <span className="text-[var(--color-muted)]"><Icon.file /></span>
-              {d.exhibit && <span className="rounded bg-slate-800 px-1.5 text-[10px] font-bold text-white">{d.exhibit}</span>}
-              <span className="flex-1 truncate">{d.title}</span>
-              <span className="tabular text-[10px] text-[var(--color-muted)]">{d.addedAt}</span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <MatterHistory matterId={m.id} derived={derived} />
+          </ul>
+        </Section>
+      )}
     </>
   );
 }
@@ -264,7 +399,6 @@ function MatterHistory({ matterId, derived }: { matterId: string; derived: Deriv
 function MatterConflicts({ matterId, derived }: { matterId: string; derived: Derived }) {
   const { t } = useTranslation();
   const setConflictOpen = useFirm((s) => s.setConflictOpen);
-  const flag = derived.conflicts.get(matterId);
   const related = derived.snapshot.conflictChecks.filter(
     (c) => c.matterId === matterId || c.hits.some((h) => h.roles.some((r) => r.matterId === matterId)),
   );
@@ -278,11 +412,6 @@ function MatterConflicts({ matterId, derived }: { matterId: string; derived: Der
         </button>
       }
     >
-      {flag && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white" style={{ background: CONFLICT_COLORS[flag.status] }}>
-          <Icon.alert /> {t('conflicts.flagged')} — {t(`conflicts.status.${flag.status}`)}
-        </div>
-      )}
       <History checks={related} derived={derived} limit={8} />
     </Section>
   );
