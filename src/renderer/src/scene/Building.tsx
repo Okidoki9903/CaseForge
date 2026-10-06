@@ -14,6 +14,7 @@ import { useFirm } from '../store/useFirm';
 import { ALERT_COLORS, SCENE_COLORS, STAGE_COLORS } from './palette';
 import { BUILDING_SIZE, PAD_GAP, padKey, type CampusLayout } from './layout';
 import { MapLabel } from './MapLabel';
+import { OfficeInterior } from './OfficeInterior';
 
 interface Props {
   area: PracticeArea;
@@ -25,6 +26,7 @@ interface Props {
   staffCount?: number;
   /** Variante architecturale (proportions, toit). */
   variant?: number;
+  cutaway?: boolean;
 }
 
 const FLOOR_H = 0.62;
@@ -136,6 +138,23 @@ function GreenRoof({ w, d }: { w: number; d: number }) {
           <meshStandardMaterial color={i % 2 ? '#7fa36e' : '#6f955f'} roughness={0.85} />
         </mesh>
       ))}
+      {/* Terrasse de travail, mobilier en bois et panneaux solaires. */}
+      <mesh position={[w * 0.15, 0.23, d * 0.1]} castShadow>
+        <cylinderGeometry args={[0.38, 0.38, 0.07, 16]} />
+        <meshStandardMaterial color="#9d7653" roughness={0.7} />
+      </mesh>
+      <mesh position={[w * 0.15, 0.13, d * 0.1]} castShadow>
+        <cylinderGeometry args={[0.04, 0.08, 0.2, 8]} />
+        <meshStandardMaterial color="#34434e" />
+      </mesh>
+      {[-1, 1].map(side => <mesh key={side} position={[w * 0.15 + side * 0.55, 0.17, d * 0.1]} castShadow>
+        <boxGeometry args={[0.3, 0.12, 0.35]} />
+        <meshStandardMaterial color="#a88a62" />
+      </mesh>)}
+      {[0, 1].map(i => <group key={i} position={[-w * 0.19 + i * 0.62, 0.18, -d * 0.25]} rotation-x={-0.16}>
+        <mesh castShadow><boxGeometry args={[0.54, 0.045, 0.64]} /><meshStandardMaterial color="#233d59" metalness={0.45} roughness={0.28} /></mesh>
+        {[-0.16, 0, 0.16].map(x => <mesh key={x} position={[x, 0.025, 0]}><boxGeometry args={[0.008, 0.004, 0.6]} /><meshStandardMaterial color="#7e9db7" /></mesh>)}
+      </group>)}
       {/* Garde-corps vitré */}
       <mesh position-y={0.22}>
         <boxGeometry args={[w + 0.02, 0.3, d + 0.02]} />
@@ -210,7 +229,7 @@ function ModernBuilding({ height, accent, variant, alarmColor }: { height: numbe
 }
 
 /** Bâtiment d'un pôle + son quai de pipeline. */
-export function Building({ area, stats, layout, overloaded = [], staffCount = 0, variant = 0 }: Props) {
+export function Building({ area, stats, layout, overloaded = [], staffCount = 0, variant = 0, cutaway = false }: Props) {
   const { t } = useTranslation();
   const select = useFirm((s) => s.select);
   const hover = useFirm((s) => s.hover);
@@ -251,7 +270,9 @@ export function Building({ area, stats, layout, overloaded = [], staffCount = 0,
           document.body.style.cursor = '';
         }}
       >
-        <ModernBuilding height={towerH} accent={accent} variant={variant} alarmColor={alarming ? ALERT_COLORS[stats.worst] : null} />
+        <group scale={cutaway ? 1.35 : 1}>
+          {cutaway ? <OfficeInterior accent={accent} /> : <ModernBuilding height={towerH} accent={accent} variant={variant} alarmColor={alarming ? ALERT_COLORS[stats.worst] : null} />}
+        </group>
         <MapLabel position={[0, towerH + 1.6, 0]}>
           <div
             className={`flex items-center gap-2.5 rounded-2xl bg-white/95 py-1.5 pl-1.5 pr-3 shadow-[0_10px_28px_-12px_rgba(30,41,80,0.45)] ring-1 transition ${

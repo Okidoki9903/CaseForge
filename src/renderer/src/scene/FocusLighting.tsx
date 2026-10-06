@@ -4,9 +4,9 @@ import { Color, type AmbientLight, type DirectionalLight, type HemisphereLight }
 import { useFirm } from '../store/useFirm';
 import { SCENE_COLORS } from './palette';
 
-const NORMAL = { ambient: 0.12, hemi: 0.32, sun: 1.9, env: 0.55, fog: new Color(SCENE_COLORS.background) };
+const NORMAL = { ambient: 0.12, hemi: 0.32, sun: 1.4, env: 0.4, fog: new Color(SCENE_COLORS.background) };
 /** Mode focus : la carte s'assombrit légèrement autour du dossier sélectionné. */
-const FOCUS = { ambient: 0.06, hemi: 0.18, sun: 1.1, env: 0.32, fog: new Color('#d3d9e3') };
+const FOCUS = { ambient: 0.06, hemi: 0.18, sun: 1.0, env: 0.3, fog: new Color('#d3d9e3') };
 
 /** Éclairage chaud et doux (soleil de fin d'après-midi), avec transition vers le mode focus. */
 export function FocusLighting() {

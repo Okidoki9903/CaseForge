@@ -21,7 +21,7 @@ function usePavingTexture() {
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     for (let y = 0; y < 4; y++) {
       for (let x = 0; x < 4; x++) {
-        const v = 236 + Math.floor(rnd() * 10);
+        const v = 203 + Math.floor(rnd() * 14);
         g.fillStyle = `rgb(${v},${v - 3},${v - 9})`;
         g.fillRect(x * 64 + 1, y * 64 + 1, 62, 62);
       }
@@ -34,7 +34,7 @@ function usePavingTexture() {
     }
     const tex = new CanvasTexture(c);
     tex.wrapS = tex.wrapT = RepeatWrapping;
-    tex.repeat.set(70, 70);
+    tex.repeat.set(110, 110);
     tex.colorSpace = SRGBColorSpace;
     tex.anisotropy = 8;
     return tex;

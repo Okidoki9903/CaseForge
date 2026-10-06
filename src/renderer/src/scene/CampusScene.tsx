@@ -2,6 +2,7 @@
  * Carte isométrique principale du cabinet.
  */
 import { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Canvas } from '@react-three/fiber';
 import { Environment, Lightformer, MapControls, PerformanceMonitor } from '@react-three/drei';
 import { Bloom, EffectComposer, N8AO, ToneMapping } from '@react-three/postprocessing';
@@ -21,6 +22,7 @@ import { MatterUnit } from './MatterUnit';
 import { SCENE_COLORS } from './palette';
 import { SelectionLinks } from './SelectionLinks';
 import { StaffUnit } from './StaffUnit';
+import { CampusLife } from './CampusLife';
 
 /** Angle polaire de la vue « maquette » : légèrement plus rasant que l'isométrique pur. */
 const VIEW_POLAR = 0.88;
@@ -49,6 +51,8 @@ function LocalEnvironment() {
 }
 
 export function CampusScene({ derived }: { derived: Derived }) {
+  const { i18n } = useTranslation();
+  const en = i18n.language.startsWith('en');
   const { snapshot, today, alerts, alertsByMatter, matterLevel, loads, areaById, conflicts } = derived;
   const select = useFirm((s) => s.select);
   const layout = useMemo(() => computeLayout(snapshot), [snapshot]);
@@ -58,6 +62,7 @@ export function CampusScene({ derived }: { derived: Derived }) {
   const [dpr, setDpr] = useState(1.5);
   // Effets cinématiques (occlusion ambiante, halo) : coupés si la machine peine.
   const [effects, setEffects] = useState(true);
+  const [view, setView] = useState<'campus' | 'street' | 'plan' | 'office'>('campus');
 
   const stats = useMemo(
     () => new Map(snapshot.practiceAreas.map((a) => [a.id, areaStats(a, snapshot, today, alerts)])),
@@ -138,11 +143,12 @@ export function CampusScene({ derived }: { derived: Derived }) {
       <FocusLighting />
 
       <Ground layout={layout} />
+      <CampusLife layout={layout} />
 
       {snapshot.practiceAreas.map((area) => (
         <Building key={area.id} area={area} stats={stats.get(area.id)!} layout={layout} overloaded={overloaded.get(area.id)}
           staffCount={staffCount.get(area.id) ?? 0}
-          variant={snapshot.practiceAreas.indexOf(area)}
+          variant={snapshot.practiceAreas.indexOf(area)} cutaway={view === 'office'}
         />
       ))}
 
@@ -182,13 +188,13 @@ export function CampusScene({ derived }: { derived: Derived }) {
         target={TARGET}
         enableDamping
         dampingFactor={0.12}
-        minPolarAngle={VIEW_POLAR}
-        maxPolarAngle={VIEW_POLAR}
+        minPolarAngle={0.15}
+        maxPolarAngle={1.35}
         minDistance={28}
         maxDistance={230}
         screenSpacePanning={false}
       />
-      <CameraRig layout={layout} />
+      <CameraRig layout={layout} view={view} />
       <EffectComposer multisampling={effects ? 4 : 2} enableNormalPass={false}>
         <N8AO enabled={effects} halfRes aoRadius={2.2} distanceFalloff={1.2} intensity={2.4} quality="medium" color="#2a3350" />
         <Bloom luminanceThreshold={0.92} luminanceSmoothing={0.2} intensity={effects ? 0.45 : 0} mipmapBlur />
@@ -196,6 +202,13 @@ export function CampusScene({ derived }: { derived: Derived }) {
       </EffectComposer>
       </LabelPortal.Provider>
     </Canvas>
+    <div className="absolute bottom-20 left-4 z-10 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-xl backdrop-blur-md" role="group" aria-label={en ? 'Campus views' : 'Vues du campus'}>
+      <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{en ? 'Explore the firm' : 'Explorer le cabinet'}</div>
+      <div className="flex flex-wrap gap-1">
+        {([['campus', 'Campus'], ['street', en ? 'Stroll' : 'Promenade'], ['plan', en ? 'Top view' : 'Plan'], ['office', en ? 'Offices' : 'Bureaux']] as const).map(([id, label]) => <button key={id} aria-pressed={view === id} onClick={() => setView(id)} className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${view === id ? 'bg-[#263b55] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</button>)}
+      </div>
+      <div className="px-2 pt-1 text-[10px] text-slate-500">{en ? 'Drag to explore · Scroll to zoom' : 'Glisser pour explorer · Molette pour zoomer'}</div>
+    </div>
     <div ref={labels} className="pointer-events-none absolute inset-0 overflow-hidden" />
     </div>
   );
